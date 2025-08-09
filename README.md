@@ -1,335 +1,344 @@
-# PAYECR Test App — ECR Terminal Communication
-
-A React Native Android app for testing ECR terminal communication.
-Built with React Native 0.80.2.
-Supports Serial (USB OTG) and TCP/IP.
-
-# Key facts
-
-* React Native 0.80.2
-* Android target API 21 or higher
-* Serial RS232 over USB OTG and TCP socket transport
-* Transaction types: Sale, Void, Refund, Pre-Auth, Settlement, Echo Test
-* Live log viewer with raw hex and parsed fields
-* LRC checksum calculation and verification
-
-# Quick start
+# ECR Terminal Test App
+React Native Android app for testing ECR terminal communication.
 
 ## Requirements
+The minimum supported React Native version is 0.80.2. Android API level 21 or higher required. Physical Android device with USB OTG support needed for serial communication.
 
-* Node.js 14 or higher
-* React Native 0.80.2 project files
-* Android Studio with SDK and platform tools
-* JDK 17
-* Physical Android device with USB OTG for serial tests
-* ECR terminal set to ECR mode
+## Getting started
+- [Learn how to test ECR terminals](#usage)
+- [Add ECR Terminal Test App to your device](#installation)
+- [Try serial and TCP communication](#terminal-setup)
 
-## Install
+## Documentation
+- [ECR Terminal Test App reference](#project-structure)
+- [Transaction types guide](#transaction-commands)
+- [Troubleshooting guide](#troubleshooting)
+
+## Examples
+
+### Minimal setup
+First, install dependencies and set up your environment.
 
 ```bash
-git clone <repository-url>
-cd ECRTestApp
 npm install
 ```
 
-## Run on device
+### Using Serial Communication
+```javascript
+// Configure serial connection
+const serialConfig = {
+  baudRate: 9600,
+  dataBits: 8,
+  parity: 'none',
+  stopBits: 1
+};
 
-```bash
-npx react-native run-android
+const ECRTest = () => {
+  const [connection, setConnection] = useState(null);
+  const [transaction, setTransaction] = useState(null);
+
+  const handleConnect = async () => {
+    try {
+      // Connect via USB OTG
+      const conn = await ECRService.connectSerial(serialConfig);
+      setConnection(conn);
+    } catch (error) {
+      console.error('Connection failed:', error);
+    }
+  };
+
+  const handleSale = async (amount, reference) => {
+    if (!connection) return;
+
+    try {
+      // Send sale transaction
+      const result = await ECRService.sendTransaction({
+        command: 'C200',
+        amount: amount,
+        reference: reference
+      });
+      
+      setTransaction(result);
+    } catch (error) {
+      console.error('Transaction failed:', error);
+    }
+  };
+
+  return (
+    <View>
+      <Button title="Connect Serial" onPress={handleConnect} />
+      <Button 
+        title="Process Sale" 
+        onPress={() => handleSale(1099, 'REF123')}
+        disabled={!connection}
+      />
+      {transaction && (
+        <Text>Result: {transaction.responseCode}</Text>
+      )}
+    </View>
+  );
+};
 ```
 
-## Build release
+### Using TCP Communication
+```javascript
+// Configure TCP connection
+const tcpConfig = {
+  host: '192.168.1.100',
+  port: 88,
+  timeout: 30000
+};
 
-```bash
-cd android
-./gradlew assembleRelease
+const ECRTestTCP = () => {
+  const [connection, setConnection] = useState(null);
+
+  const handleConnect = async () => {
+    try {
+      // Connect via TCP/IP
+      const conn = await ECRService.connectTCP(tcpConfig);
+      setConnection(conn);
+    } catch (error) {
+      console.error('TCP connection failed:', error);
+    }
+  };
+
+  const handleEchoTest = async () => {
+    if (!connection) return;
+
+    try {
+      // Send echo test
+      const result = await ECRService.sendTransaction({
+        command: 'C902'
+      });
+      
+      console.log('Echo test result:', result);
+    } catch (error) {
+      console.error('Echo test failed:', error);
+    }
+  };
+
+  return (
+    <View>
+      <Button title="Connect TCP" onPress={handleConnect} />
+      <Button 
+        title="Echo Test" 
+        onPress={handleEchoTest}
+        disabled={!connection}
+      />
+    </View>
+  );
+};
 ```
 
-APK path: `android/app/build/outputs/apk/release/app-release.apk`
+## Installation
 
-# Android dependencies
+### 1. Clone and Install
+```bash
+git clone <repo-url>
+cd ecr-terminal-test-app
+npm install
+```
 
-Add this to `android/app/build.gradle` under dependencies:
-
+### 2. Android Dependencies
+Add to `android/app/build.gradle`:
 ```gradle
-implementation 'com.github.mik3y:usb-serial-for-android:3.4.6'
+dependencies {
+    implementation 'com.github.mik3y:usb-serial-for-android:3.4.6'
+}
 ```
 
-Add vector fonts loader:
-
+Add to the end of `android/app/build.gradle`:
 ```gradle
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 ```
 
-# Environment
-
-Add to your shell profile:
-
+### 3. Environment Setup
+Set your Android SDK path:
 ```bash
-export ANDROID_HOME=$HOME/Android/Sdk
+export ANDROID_HOME=/path/to/android/sdk
 export PATH=$PATH:$ANDROID_HOME/emulator
 export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 ```
 
-# App configuration
-
-* TCP: IP address, port, timeout
-* Serial: baud rate and connection params
-* Host mode: auto, card-only, QR-only, or specific host
-* LRC mode: XOR or ISO 1155 two's complement
-
-# Terminal setup
-
-## TCP mode
-
-* Set terminal to a static IP
-* Use port 88 by default
-* Put terminal and device on same network
-
-## Serial mode
-
-* Use USB OTG cable and adapter
-* Terminal serial settings:
-
-  * Baud rate 9600
-  * Data bits 8
-  * Parity none
-  * Stop bits 1
-* Grant USB permission on device
-
-# Usage
-
-1. Start the app on your Android device
-2. Select connection type: TCP or Serial
-3. Enter connection parameters
-4. Connect to the terminal
-5. Choose a transaction type
-6. Fill required fields
-7. Send the transaction
-8. Inspect logs and parsed response
-
-# ECR protocol summary
-
-## Frame structure
-
-STX + payload + ETX + LRC
-
-## Control flow
-
-1. Host sends ENQ
-2. Terminal replies ACK
-3. Host sends command frame
-4. Terminal replies ACK
-5. Terminal sends ENQ to start response
-6. Host replies ACK
-7. Terminal sends response frame
-8. Host replies ACK
-9. Host sends EOT to finish
-
-## Common commands
-
-* C100  Pre-Authorization
-* C200  Sale
-* C201  Void
-* C203  Refund
-* C500  Settlement
-* C902  Echo Test
-* C910  Read Card
-
-# LRC checksum
-
-The app supports two LRC modes. Choose the one used by your terminal.
-
-## XOR mode
-
-* Start LRC at 0
-* XOR each byte from STX through ETX
-* Result is the LRC byte
-
-## ISO 1155 two's complement mode
-
-* Sum relevant bytes
-* Keep low 8 bits
-* Two's complement of that byte is the LRC
-
-## Worked example
-
-Payload text: `C200|01|000100`
-
-Bytes: `02 43 32 30 30 7C 30 31 7C 30 30 30 31 30 30 03`
-
-XOR of these bytes yields a single byte LRC. The app shows raw hex and parsed fields.
-
-# Logging and debug
-
-* Logs persist to local storage
-* Filter by level: info, success, warning, error, debug
-* View raw TX and RX hex
-* Export logs for offline analysis
-* Use `adb logcat` for native and JS logs
-
-Example:
-
+### 4. Run on Device
 ```bash
-adb logcat | grep ECRTestApp
+npx react-native run-android
 ```
 
-# Project layout
-
-```
-src/
-  components/   UI controls
-  screens/      App screens
-  services/     ECRService, MessageBuilder, ResponseParser, LRCCalculator
-  utils/        Constants and helpers
-  examples/     Sample frames and recorded sessions
-
-android/
-  native modules and Java wrappers
-  ECRSerialModule.java
-  ECRTcpModule.java
-```
-
-# Core modules
-
-* ECRService.js
-
-  * Manage transport
-  * Orchestrate ENQ/ACK flow
-  * Retry and timeout logic
-* MessageBuilder.js
-
-  * Build command frames
-  * Pad fields per spec
-* ResponseParser.js
-
-  * Parse terminal responses
-  * Map response fields to labels
-* LRCCalculator.js
-
-  * Compute and verify LRC
-  * Support both modes
-* LogViewer.js
-
-  * Persist and filter logs
-  * Show raw hex and parsed view
-
-# Adding a new command
-
-1. Add a constant to `utils/Constants.js`
-2. Add a builder in `MessageBuilder.js`
-3. Add a parser in `ResponseParser.js`
-4. Add a form in `TransactionForm.js`
-5. Add unit tests for builder and parser
-6. Rebuild android if native code changed
-
-# Testing
-
-Unit tests
-
-* MessageBuilder
-* ResponseParser
-* LRCCalculator
-
-Integration tests
-
-* Echo test round trip
-* Small sale against a test host
-* Mock terminal harness in `examples/mocks`
-
-Run locally
-
-```bash
-npm test
-npm run lint
-```
-
-# Troubleshooting
-
-## Serial not detected
-
-* Check OTG cable and adapter
-* Confirm USB permission prompt on device
-* Try a different cable or device
-
-## TCP fails
-
-* Ping terminal IP from a workstation on same network
-* Telnet to port 88 to check listener
-* Check firewall rules
-
-## Timeouts
-
-* Increase timeout in TCP settings
-* Confirm terminal responsiveness
-
-## LRC errors
-
-* Verify selected LRC mode
-* Check message encoding, use ISO-8859-1 if required
-* Inspect raw hex logs for corrupted bytes
-
-## Native module errors
-
-* Clean android build:
-
+### 5. Build Release
 ```bash
 cd android
-./gradlew clean
-./gradlew assembleDebug
+./gradlew assembleRelease
+# Find APK at: android/app/build/outputs/apk/release/app-release.apk
 ```
 
-* Inspect `adb logcat` for native traces
+## Terminal Setup
 
-# Security
+### TCP Mode
+```javascript
+const tcpSetup = {
+  terminal: {
+    ip: '192.168.1.100', // Static IP
+    port: 88,
+    network: 'same as Android device'
+  }
+};
+```
 
-* Do not store PAN or sensitive track data in plain logs
-* Redact or mask sensitive fields before export
-* Use HTTPS for remote uploads
-* Remove debug flags from release builds
-* Follow card brand and PCI guidance before any production use
+### Serial Mode
+```javascript
+const serialSetup = {
+  hardware: 'USB OTG cable + adapter',
+  settings: {
+    baudRate: 9600,
+    dataBits: 8,
+    parity: 'none',
+    stopBits: 1
+  },
+  permissions: 'Grant USB access on Android'
+};
+```
 
-# Contributing
+## Usage
 
-Help improve the project. Focus on docs, tests, and examples.
+1. **Start the app** on your Android device
+2. **Choose connection type** (TCP or Serial)
+3. **Enter parameters** (IP/port or serial settings)
+4. **Connect to terminal**
+5. **Select transaction type**
+6. **Fill required fields**
+7. **Send transaction**
+8. **View response** in logs with hex data
 
-Priority tasks
+## Transaction Commands
 
-* Improve quick start and onboarding
-* Add full byte level protocol guide per command
-* Add unit tests for LRCCalculator, MessageBuilder, ResponseParser
-* Add mock terminal harness and fixtures
-* Add CI to run lint and tests on every PR
-* Add issue and PR templates
+| Command | Type | Required Fields | Example |
+|---------|------|-----------------|---------|
+| C200 | Sale | Amount, Reference | `{amount: 1099, reference: 'REF123'}` |
+| C201 | Void | Original TX ID | `{originalTxId: 'TX12345'}` |
+| C203 | Refund | Amount, Original TX ID | `{amount: 599, originalTxId: 'TX12345'}` |
+| C100 | Pre-Auth | Amount, Reference | `{amount: 2000, reference: 'AUTH456'}` |
+| C500 | Settlement | None | `{}` |
+| C902 | Echo Test | None | `{}` |
 
-Workflow
+## Configuration Options
 
-1. Fork the repo
-2. Create a branch `feature/name` or `fix/name`
-3. Keep changes small
-4. Add or update tests
-5. Run lint and tests locally
-6. Commit with prefix `feat:`, `fix:`, `docs:`, or `test:`
-7. Open a PR to `main`
-8. Add a testing checklist and attach logs or screenshots
+```javascript
+const ecrConfig = {
+  // Connection settings
+  connection: {
+    type: 'tcp', // or 'serial'
+    timeout: 30000
+  },
+  
+  // TCP settings
+  tcp: {
+    host: '192.168.1.100',
+    port: 88
+  },
+  
+  // Serial settings
+  serial: {
+    baudRate: 9600,
+    dataBits: 8,
+    parity: 'none',
+    stopBits: 1
+  },
+  
+  // Protocol settings
+  protocol: {
+    lrcMode: 'xor', // or 'iso1155'
+    hostMode: 'auto' // 'card-only', 'qr-only', or specific
+  },
+  
+  // Logging
+  logging: {
+    level: 'debug', // 'info', 'success', 'warning', 'error'
+    exportEnabled: true
+  }
+};
+```
 
-# License
+## Project Structure
+```
+src/
+├── components/         # UI components
+│   ├── TransactionForm.js
+│   ├── LogViewer.js
+│   └── ConnectionStatus.js
+├── screens/           # App screens
+│   ├── HomeScreen.js
+│   ├── TransactionScreen.js
+│   └── LogScreen.js
+├── services/          # Core ECR logic
+│   ├── ECRService.js
+│   ├── MessageBuilder.js
+│   ├── ResponseParser.js
+│   └── LRCCalculator.js
+├── utils/             # Constants and helpers
+│   ├── Constants.js
+│   └── Helpers.js
+└── android/           # Native modules
+    ├── ECRSerialModule.java
+    └── ECRTcpModule.java
+```
 
-Choose a license that fits your use case.
-Common choices:
+## Troubleshooting
 
-* MIT
-* Apache 2.0
+**Serial connection issues**
+```bash
+# Check USB permissions
+adb shell dumpsys usb
 
-# Version history
+# Verify cable connection
+# Ensure USB OTG adapter is working
+# Grant USB permissions when prompted
+```
 
-v1.0.0 Initial release, React Native 0.80.2
+**TCP connection fails**
+```bash
+# Test network connectivity
+ping 192.168.1.100
 
-* Serial and TCP transports
-* Core transaction flows
-* Live logging and parsing
+# Check port availability
+telnet 192.168.1.100 88
 
-# Notes
+# Verify terminal is in ECR mode
+```
 
-If you want edits, tell me which section to update.
+**LRC checksum errors**
+- Ensure LRC mode matches terminal settings (XOR vs ISO 1155)
+- Check hex data in logs for corruption
+- Verify baud rate settings
+
+**Build errors**
+```bash
+# Clean and rebuild
+cd android
+./gradlew clean
+cd ..
+npx react-native run-android
+```
+
+## Testing
+Run unit tests:
+```bash
+npm test
+```
+
+Test with echo command:
+```javascript
+const echoTest = async () => {
+  const result = await ECRService.sendTransaction({
+    command: 'C902'
+  });
+  console.log('Echo response:', result);
+};
+```
+
+## TypeScript Support
+ECR Terminal Test App includes TypeScript declarations for all ECR communication methods and transaction types.
+
+## Contributing
+If you would like to contribute to ECR Terminal Test App, please make sure to read our contributor guidelines.
