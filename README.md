@@ -455,9 +455,6 @@ export const ECR_CONSTANTS = {
 6. Push to branch: `git push origin feature/new-feature`
 7. Open Pull Request with detailed description
 
-## License
-MIT License - see LICENSE file for details
-
 ## Support
 For issues and questions:
 - Check existing GitHub issues
