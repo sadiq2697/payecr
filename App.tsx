@@ -1,28 +1,40 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React from 'react';
+import { StatusBar } from 'react-native';
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import HomeScreen from './src/screens/HomeScreen';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <NewAppScreen templateFileName="App.tsx" />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+const theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: '#2196F3',
+    accent: '#03DAC6',
+    background: '#f5f5f5',
+    surface: '#ffffff',
+    text: '#000000',
+    onSurface: '#000000',
+    disabled: '#00000061',
+    placeholder: '#00000061',
+    backdrop: '#00000050',
+    onBackground: '#000000',
+    notification: '#f50057',
   },
-});
+};
+
+const App = () => {
+  return (
+    <SafeAreaProvider>
+      <PaperProvider theme={theme}>
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor={theme.colors.primary}
+        />
+        <HomeScreen/>
+      </PaperProvider>
+    </SafeAreaProvider>
+  );
+};
 
 export default App;
+
