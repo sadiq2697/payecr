@@ -122,7 +122,6 @@ dependencies {
 
 Add to the end of `android/app/build.gradle`:
 ```gradle
-apply from: "../../node_modules/react-native-paper/fonts.gradle"
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 ```
 
@@ -419,7 +418,7 @@ logs.forEach(log => {
 // Modify src/utils/Constants.js for custom settings
 export const ECR_CONSTANTS = {
   // Serial settings
-  SERIAL_BAUD_RATE: 9600,
+  SERIAL_BAUD_RATE: 9600,  // Note: actual constant name
   SERIAL_DATA_BITS: 8,
   SERIAL_PARITY: 'none',
   SERIAL_STOP_BITS: 1,
@@ -466,4 +465,4 @@ For issues and questions:
 
 **Version**: 1.0.0  
 **Last Updated**: 2025  
-**Compatible Terminals**: Verifone ECR terminals with ECR protocol support
+**Compatible Terminals**: Payment terminals with ECR protocol support
