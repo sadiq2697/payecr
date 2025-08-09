@@ -1,10 +1,13 @@
 # PAYECR Test App
-React Native Android app for testing ECR terminal communication.
+React Native Android app for testing ECR terminal communication with Paysys terminals.
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![React Native](https://img.shields.io/badge/React%20Native-0.80.2-blue)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![React Native](https://img.shields.io/badge/React%20Native-0.80.2-blue) ![Android](https://img.shields.io/badge/Android-API%2021%2B-green)
 
 ## Requirements
-The minimum supported React Native version is 0.80.2. Android API level 21 or higher required. Physical Android device with USB OTG support needed for serial communication.
+- React Native 0.80.2 or higher
+- Android API level 21 or higher
+- Physical Android device with USB OTG support for serial communication
+- Node.js 14+ and Android Studio with SDK
 
 ## Getting started
 - [Learn how to test ECR terminals](#usage)
@@ -15,123 +18,89 @@ The minimum supported React Native version is 0.80.2. Android API level 21 or hi
 ## Documentation
 - [PAYECR Test App reference](#project-structure)
 - [Transaction types guide](#transaction-commands) 
-- [ECR protocol documentation](#troubleshooting)
-- [Android native modules](#project-structure)
+- [ECR protocol documentation](#ecr-protocol)
+- [Android native modules](#native-modules)
+
+## Features
+- **Dual Communication**: Serial (USB OTG) and TCP/IP support
+- **Complete Transaction Set**: Sale, Void, Refund, Pre-Auth, Settlement, Echo Test
+- **Real-time Logging**: Live hex viewer with parsed response fields
+- **LRC Verification**: Automatic checksum calculation and validation
+- **Response Parsing**: Structured display of all transaction data
+- **Connection Management**: Auto-detection and status monitoring
 
 ## Examples
 
-### Minimal setup
-First, install dependencies and set up your environment.
-
-```bash
-npm install
-```
-
-### Using Serial Communication
+### Basic Usage Flow
 ```javascript
-// Configure serial connection
-const serialConfig = {
-  baudRate: 9600,
-  dataBits: 8,
-  parity: 'none',
-  stopBits: 1
-};
+import { ECRService } from './src/services/ECRService';
 
-const ECRTest = () => {
-  const [connection, setConnection] = useState(null);
-  const [transaction, setTransaction] = useState(null);
+// Initialize service
+const ecrService = new ECRService();
 
-  const handleConnect = async () => {
-    try {
-      // Connect via USB OTG
-      const conn = await ECRService.connectSerial(serialConfig);
-      setConnection(conn);
-    } catch (error) {
-      console.error('Connection failed:', error);
-    }
-  };
-
-  const handleSale = async (amount, reference) => {
-    if (!connection) return;
-
-    try {
-      // Send sale transaction
-      const result = await ECRService.sendTransaction({
-        command: 'C200',
-        amount: amount,
-        reference: reference
-      });
-      
-      setTransaction(result);
-    } catch (error) {
-      console.error('Transaction failed:', error);
-    }
-  };
-
-  return (
-    <View>
-      <Button title="Connect Serial" onPress={handleConnect} />
-      <Button 
-        title="Process Sale" 
-        onPress={() => handleSale(1099, 'REF123')}
-        disabled={!connection}
-      />
-      {transaction && (
-        <Text>Result: {transaction.responseCode}</Text>
-      )}
-    </View>
-  );
-};
-```
-
-### Using TCP Communication
-```javascript
-// Configure TCP connection
-const tcpConfig = {
+// Connect via TCP
+await ecrService.connectTCP({
   host: '192.168.1.100',
   port: 88,
-  timeout: 30000
-};
+  timeout: 5000
+});
 
-const ECRTestTCP = () => {
-  const [connection, setConnection] = useState(null);
+// Perform sale transaction
+const result = await ecrService.performSale({
+  hostNo: '00',
+  amount: 1099, // RM 10.99 in cents
+  additionalData: 'Test Sale'
+});
 
-  const handleConnect = async () => {
-    try {
-      // Connect via TCP/IP
-      const conn = await ECRService.connectTCP(tcpConfig);
-      setConnection(conn);
-    } catch (error) {
-      console.error('TCP connection failed:', error);
-    }
-  };
+console.log('Transaction result:', result);
+```
 
-  const handleEchoTest = async () => {
-    if (!connection) return;
+### Serial Connection Example
+```javascript
+// Connect via USB OTG Serial
+await ecrService.connectSerial({
+  baudRate: 9600,
+  dataBits: 8,
+  stopBits: 1,
+  parity: 0 // NONE
+});
 
-    try {
-      // Send echo test
-      const result = await ECRService.sendTransaction({
-        command: 'C902'
-      });
-      
-      console.log('Echo test result:', result);
-    } catch (error) {
-      console.error('Echo test failed:', error);
-    }
-  };
+// Check available serial ports
+const ports = await ecrService.getAvailableSerialPorts();
+console.log(`Available ports: ${ports.count}`);
+```
 
-  return (
-    <View>
-      <Button title="Connect TCP" onPress={handleConnect} />
-      <Button 
-        title="Echo Test" 
-        onPress={handleEchoTest}
-        disabled={!connection}
-      />
-    </View>
-  );
-};
+### Transaction Examples
+```javascript
+// Sale Transaction
+const saleResult = await ecrService.performSale({
+  hostNo: '00',        // Auto-select host
+  amount: 2500,        // RM 25.00
+  additionalData: 'POS Sale'
+});
+
+// Void Transaction
+const voidResult = await ecrService.performVoid({
+  hostNo: '00',
+  traceNumber: '123456',
+  additionalData: 'Cancel Sale'
+});
+
+// Refund Transaction
+const refundResult = await ecrService.performRefund({
+  hostNo: '00',
+  amount: 1500,        // Refund RM 15.00
+  originalAmount: 2500, // From original RM 25.00 sale
+  additionalData: 'Customer Return'
+});
+
+// Settlement
+const settlementResult = await ecrService.performSettlement({
+  hostNo: '00'
+});
+
+// Echo Test
+const echoResult = await ecrService.performEchoTest();
 ```
 
 ## Installation
@@ -153,11 +122,19 @@ dependencies {
 
 Add to the end of `android/app/build.gradle`:
 ```gradle
+apply from: "../../node_modules/react-native-paper/fonts.gradle"
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 ```
 
-### 3. Environment Setup
-Set your Android SDK path:
+### 3. Permissions
+Add to `android/app/src/main/AndroidManifest.xml`:
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<uses-feature android:name="android.hardware.usb.host" />
+```
+
+### 4. Environment Setup
 ```bash
 export ANDROID_HOME=/path/to/android/sdk
 export PATH=$PATH:$ANDROID_HOME/emulator
@@ -165,12 +142,12 @@ export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 ```
 
-### 4. Run on Device
+### 5. Run Development
 ```bash
 npx react-native run-android
 ```
 
-### 5. Build Release
+### 6. Build Release
 ```bash
 cd android
 ./gradlew assembleRelease
@@ -179,170 +156,317 @@ cd android
 
 ## Terminal Setup
 
-### TCP Mode
+### TCP Mode Configuration
 ```javascript
-const tcpSetup = {
-  terminal: {
-    ip: '192.168.1.100', // Static IP
-    port: 88,
-    network: 'same as Android device'
-  }
+const tcpConfig = {
+  host: '192.168.1.100',    // Terminal IP (static recommended)
+  port: 88,                 // Standard ECR port
+  timeout: 5000             // Connection timeout in ms
 };
+
+// Test connection before establishing
+const testResult = await ecrService.testTCPConnection(tcpConfig);
+if (testResult.success) {
+  await ecrService.connectTCP(tcpConfig);
+}
 ```
 
-### Serial Mode
+### Serial Mode Configuration  
 ```javascript
-const serialSetup = {
-  hardware: 'USB OTG cable + adapter',
-  settings: {
-    baudRate: 9600,
-    dataBits: 8,
-    parity: 'none',
-    stopBits: 1
-  },
-  permissions: 'Grant USB access on Android'
+const serialConfig = {
+  baudRate: 9600,           // Standard baud rate
+  dataBits: 8,              // Data bits
+  stopBits: 1,              // Stop bits  
+  parity: 0                 // 0 = NONE, 1 = ODD, 2 = EVEN
 };
+
+// Check available ports first
+const ports = await ecrService.getAvailableSerialPorts();
+if (ports.count > 0) {
+  await ecrService.connectSerial(serialConfig);
+}
 ```
 
 ## Usage
 
-1. **Start the app** on your Android device
-2. **Choose connection type** (TCP or Serial)
-3. **Enter parameters** (IP/port or serial settings)
-4. **Connect to terminal**
-5. **Select transaction type**
-6. **Fill required fields**
-7. **Send transaction**
-8. **View response** in logs with hex data
+### App Interface
+1. **Connection Setup**: Choose TCP or Serial, configure parameters
+2. **Status Monitoring**: Real-time connection status with visual indicators
+3. **Transaction Form**: Select transaction type and enter required fields
+4. **Response Display**: View parsed transaction results and raw hex data
+5. **Communication Log**: Monitor all ECR communication with filtering
+
+### Host Number Options
+| Host Code | Description | Use Case |
+|-----------|-------------|----------|
+| `00` | Auto Select | Let terminal choose payment method |
+| `CP` | Card Only | Force card payment only |
+| `QR` | QR Only | QR/Wallet payments only |
+| `DN` | DuitNow QR | Specific to DuitNow QR |
+| `01-99` | Specific Host | Direct host routing |
 
 ## Transaction Commands
 
-| Command | Type | Required Fields | Example |
-|---------|------|-----------------|---------|
-| C200 | Sale | Amount, Reference | `{amount: 1099, reference: 'REF123'}` |
-| C201 | Void | Original TX ID | `{originalTxId: 'TX12345'}` |
-| C203 | Refund | Amount, Original TX ID | `{amount: 599, originalTxId: 'TX12345'}` |
-| C100 | Pre-Auth | Amount, Reference | `{amount: 2000, reference: 'AUTH456'}` |
-| C500 | Settlement | None | `{}` |
-| C902 | Echo Test | None | `{}` |
+| Command | Type | Required Fields | Response Code |
+|---------|------|-----------------|---------------|
+| C200 | Sale | Amount, Host Number | R200 |
+| C201 | Void | Trace Number, Host Number | R201 |
+| C203 | Refund | Amount, Original Amount, Host Number | R203 |
+| C100 | Pre-Auth | Amount, Host Number | R100 |
+| C500 | Settlement | Host Number | R500 |
+| C902 | Echo Test | None | R902 |
+| C910 | Read Card | None | R910 |
+| C290 | Wallet Sale | Amount, QR Code, Host Number | R290 |
 
-## Configuration Options
+## ECR Protocol
 
+### Message Structure
+```
+STX + Message Content + ETX + LRC
+```
+- **STX**: Start of Text (0x02)
+- **ETX**: End of Text (0x03)  
+- **LRC**: XOR checksum of message content + ETX
+
+### Communication Flow
+```
+1. Host → Terminal: ENQ
+2. Terminal → Host: ACK
+3. Host → Terminal: Command Message
+4. Terminal → Host: ACK
+5. Terminal → Host: ENQ
+6. Host → Terminal: ACK
+7. Terminal → Host: Response Message
+8. Host → Terminal: ACK
+9. Terminal → Host: EOT
+```
+
+### Example Message
 ```javascript
-const ecrConfig = {
-  // Connection settings
-  connection: {
-    type: 'tcp', // or 'serial'
-    timeout: 30000
-  },
-  
-  // TCP settings
-  tcp: {
-    host: '192.168.1.100',
-    port: 88
-  },
-  
-  // Serial settings
-  serial: {
-    baudRate: 9600,
-    dataBits: 8,
-    parity: 'none',
-    stopBits: 1
-  },
-  
-  // Protocol settings
-  protocol: {
-    lrcMode: 'xor', // or 'iso1155'
-    hostMode: 'auto' // 'card-only', 'qr-only', or specific
-  },
-  
-  // Logging
-  logging: {
-    level: 'debug', // 'info', 'success', 'warning', 'error'
-    exportEnabled: true
-  }
-};
+// Sale command for RM 10.99
+const message = 'C2000000000001099                        ';
+const wrappedMessage = '\x02' + message + '\x03' + lrcByte;
+
+// Hex representation: 02 43 32 30 30 30 30 30 30 30 30 30 30 31 30 39 39 ... 03 XX
 ```
 
 ## Project Structure
 ```
 src/
-├── components/         # UI components
-│   ├── TransactionForm.js
-│   ├── LogViewer.js
-│   └── ConnectionStatus.js
-├── screens/           # App screens
-│   ├── HomeScreen.js
-│   ├── TransactionScreen.js
-│   └── LogScreen.js
-├── services/          # Core ECR logic
-│   ├── ECRService.js
-│   ├── MessageBuilder.js
-│   ├── ResponseParser.js
-│   └── LRCCalculator.js
-├── utils/             # Constants and helpers
-│   ├── Constants.js
-│   └── Helpers.js
-└── android/           # Native modules
-    ├── ECRSerialModule.java
-    └── ECRTcpModule.java
+├── components/           # UI Components
+│   ├── ConnectionSetup.js    # TCP/Serial connection management
+│   ├── TransactionForm.js    # Transaction input form
+│   ├── ResponseDisplay.js    # Response parsing and display
+│   └── LogViewer.js         # Communication log viewer
+├── screens/             # App Screens  
+│   └── HomeScreen.js        # Main application screen
+├── services/            # Core ECR Logic
+│   ├── ECRService.js        # Main service class
+│   ├── MessageBuilder.js    # Command message construction
+│   ├── ResponseParser.js    # Response parsing logic
+│   └── LRCCalculator.js     # Checksum calculation
+├── utils/               # Constants and Helpers
+│   └── Constants.js         # ECR protocol constants
+└── android/             # Native Modules
+    ├── ECRSerialModule.java # Serial communication
+    └── ECRTcpModule.java    # TCP communication
+```
+
+## Native Modules
+
+### ECRSerialModule
+- `openSerial(config)`: Open serial connection
+- `closeSerial()`: Close serial connection  
+- `writeData(data)`: Write data to serial port
+- `readData()`: Read data from serial port
+- `getAvailablePorts()`: List available USB serial devices
+- `isConnected()`: Check connection status
+
+### ECRTcpModule  
+- `connect(config)`: Connect to TCP endpoint
+- `disconnect()`: Close TCP connection
+- `send(data)`: Send data via TCP
+- `receive()`: Receive data from TCP
+- `testConnection(config)`: Test TCP connectivity
+- `isConnected()`: Check connection status
+
+## Response Parsing
+
+### Sale Response (R200)
+```javascript
+{
+  success: true,
+  transactionType: 'SALE',
+  responseCode: 'R200',
+  cardNumber: '411111******1111',
+  expiryDate: '1225',
+  statusCode: '00',
+  approvalCode: '123456',
+  rrn: '202301011234',
+  transactionTrace: '000001',
+  batchNumber: '000001',
+  hostNo: '00',
+  terminalId: 'T1234567',
+  merchantId: '123456789012345',
+  cardType: '01',
+  isApproved: true,
+  statusDescription: 'Approved'
+}
+```
+
+### Settlement Response (R500)
+```javascript
+{
+  success: true,
+  transactionType: 'SETTLEMENT',
+  responseCode: 'R500', 
+  hostNo: '00',
+  statusCode: '00',
+  batchNumber: '000001',
+  batchCount: '025',
+  batchAmount: '000000125099',
+  isApproved: true,
+  statusDescription: 'Approved'
+}
 ```
 
 ## Troubleshooting
 
-**Serial connection issues**
+### Serial Connection Issues
 ```bash
 # Check USB permissions
 adb shell dumpsys usb
 
-# Verify cable connection
-# Ensure USB OTG adapter is working
-# Grant USB permissions when prompted
+# Verify device detection  
+adb logcat | grep -i usb
+
+# Common solutions:
+# 1. Use quality USB OTG cable
+# 2. Grant USB permissions when prompted  
+# 3. Restart app after connecting cable
+# 4. Check terminal is in ECR mode
 ```
 
-**TCP connection fails**
+### TCP Connection Issues
 ```bash
 # Test network connectivity
 ping 192.168.1.100
 
 # Check port availability
 telnet 192.168.1.100 88
+nc -zv 192.168.1.100 88
 
-# Verify terminal is in ECR mode
+# Common solutions:
+# 1. Ensure terminal and device on same network
+# 2. Use static IP for terminal
+# 3. Check firewall settings
+# 4. Verify terminal ECR mode and port 88
 ```
 
-**LRC checksum errors**
-- Ensure LRC mode matches terminal settings (XOR vs ISO 1155)
-- Check hex data in logs for corruption
-- Verify baud rate settings
+### LRC Checksum Errors
+- Verify terminal LRC mode matches app (XOR vs ISO 1155)
+- Check for data corruption in logs using hex viewer
+- Confirm baud rate settings match (9600)
+- Try different USB cable if using serial
 
-**Build errors**
+### Build and Runtime Issues
 ```bash
 # Clean and rebuild
 cd android
 ./gradlew clean
 cd ..
 npx react-native run-android
+
+# Clear React Native cache
+npx react-native start --reset-cache
+
+# Check native module linking
+npx react-native doctor
 ```
 
 ## Testing
-Run unit tests:
+
+### Unit Tests
 ```bash
 npm test
 ```
 
-Test with echo command:
+### Integration Testing
 ```javascript
-const echoTest = async () => {
-  const result = await ECRService.sendTransaction({
-    command: 'C902'
-  });
-  console.log('Echo response:', result);
+// Echo test for connectivity
+const echoResult = await ecrService.performEchoTest();
+console.log('Echo test:', echoResult.success ? 'PASSED' : 'FAILED');
+
+// Connection status check
+const isConnected = await ecrService.checkConnection(); 
+console.log('Connection status:', isConnected);
+```
+
+### Debug Logging
+Enable detailed logging in ECRService:
+```javascript
+// Check communication log
+const logs = ecrService.getCommunicationLog();
+logs.forEach(log => {
+  console.log(`[${log.level}] ${log.timestamp}: ${log.message}`);
+});
+```
+
+## Configuration Options
+
+### ECR Constants Configuration
+```javascript
+// Modify src/utils/Constants.js for custom settings
+export const ECR_CONSTANTS = {
+  // Serial settings
+  SERIAL_BAUD_RATE: 9600,
+  SERIAL_DATA_BITS: 8,
+  SERIAL_PARITY: 'none',
+  SERIAL_STOP_BITS: 1,
+  
+  // TCP settings  
+  TCP_PORT: 88,
+  
+  // Timeouts
+  ENQ_TIMEOUT: 3000,
+  COMMAND_TIMEOUT: 5000,
+  RESPONSE_TIMEOUT: 120000,
+  ACK_TIMEOUT: 2000,
+  
+  // Retry counts
+  ENQ_RETRY_COUNT: 3,
+  COMMAND_RETRY_COUNT: 3
 };
 ```
 
-## TypeScript Support
-ECR Terminal Test App includes TypeScript declarations for all ECR communication methods and transaction types.
+## Security Considerations
+- All sensitive card data is masked in logs by default
+- Communication logs can be cleared after testing
+- Use HTTPS for any remote log transmission
+- Follow PCI DSS guidelines for production deployment
+- Terminal should be in secure, controlled environment
 
 ## Contributing
-If you would like to contribute to ECR Terminal Test App, please make sure to read our contributor guidelines.
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/new-feature`
+3. Add tests for new functionality
+4. Ensure all tests pass: `npm test`
+5. Commit with conventional format: `feat: add new transaction type`
+6. Push to branch: `git push origin feature/new-feature`
+7. Open Pull Request with detailed description
+
+## License
+MIT License - see LICENSE file for details
+
+## Support
+For issues and questions:
+- Check existing GitHub issues
+- Review troubleshooting section
+- Enable debug logging for detailed error information
+- Test with echo command to verify basic connectivity
+
+---
+
+**Version**: 1.0.0  
+**Last Updated**: 2025  
+**Compatible Terminals**: Verifone ECR terminals with ECR protocol support
