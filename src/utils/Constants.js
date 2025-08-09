@@ -9,7 +9,7 @@ export const ECR_CONSTANTS = {
   EOT: '\x04',
   
   // Communication settings
-  BUAD_RATE: 9600,
+  BAUD_RATE: 9600,
   SERIAL_DATA_BITS: 8,
   SERIAL_PARITY: 'none',
   SERIAL_STOP_BITS: 1,
