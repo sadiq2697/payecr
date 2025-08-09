@@ -1,18 +1,22 @@
-# ECR Terminal Test App
+# PAYECR Test App
 React Native Android app for testing ECR terminal communication.
+
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![React Native](https://img.shields.io/badge/React%20Native-0.80.2-blue)
 
 ## Requirements
 The minimum supported React Native version is 0.80.2. Android API level 21 or higher required. Physical Android device with USB OTG support needed for serial communication.
 
 ## Getting started
 - [Learn how to test ECR terminals](#usage)
-- [Add ECR Terminal Test App to your device](#installation)
+- [Add PAYECR Test App to your device](#installation) 
 - [Try serial and TCP communication](#terminal-setup)
+- [Try it out using Android Studio](https://developer.android.com/studio)
 
 ## Documentation
-- [ECR Terminal Test App reference](#project-structure)
-- [Transaction types guide](#transaction-commands)
-- [Troubleshooting guide](#troubleshooting)
+- [PAYECR Test App reference](#project-structure)
+- [Transaction types guide](#transaction-commands) 
+- [ECR protocol documentation](#troubleshooting)
+- [Android native modules](#project-structure)
 
 ## Examples
 
@@ -134,8 +138,8 @@ const ECRTestTCP = () => {
 
 ### 1. Clone and Install
 ```bash
-git clone <repo-url>
-cd ecr-terminal-test-app
+git clone https://github.com/sadiq2697/payecr.git
+cd payecr
 npm install
 ```
 
