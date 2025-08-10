@@ -2,6 +2,7 @@ package com.payecr;
 
 import android.util.Log;
 import com.facebook.react.bridge.*;
+import com.facebook.react.bridge.LifecycleEventListener; // Import LifecycleEventListener
 
 import java.io.*;
 import java.net.*;
@@ -10,7 +11,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ECRTcpModule extends ReactContextBaseJavaModule {
+// Implement LifecycleEventListener
+public class ECRTcpModule extends ReactContextBaseJavaModule implements LifecycleEventListener { // Implements LifecycleEventListener
 
     private static final String TAG = "ECRTcp";
     private static final String MODULE_NAME = "ECRTcp";
@@ -29,6 +31,8 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
     public ECRTcpModule(ReactApplicationContext reactContext) {
         super(reactContext);
         executorService = Executors.newCachedThreadPool();
+        // Register this module as a LifecycleEventListener
+        getReactApplicationContext().addLifecycleEventListener(this);
     }
 
     @Override
@@ -49,7 +53,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
 
         executorService.execute(() -> {
             try {
-                // Close existing connection if any
                 if (isConnected.get()) {
                     disconnect(null);
                 }
@@ -59,24 +62,20 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
                 socket = new Socket();
                 socket.connect(new InetSocketAddress(host, port), timeout);
                 
-                // Set socket options for ECR communication
                 socket.setSoTimeout(READ_TIMEOUT);
-                socket.setTcpNoDelay(true); // Disable Nagle's algorithm for immediate sends
-                socket.setKeepAlive(true);   // Enable keep-alive for connection monitoring
+                socket.setTcpNoDelay(true);
+                socket.setKeepAlive(true);
 
-                // Use raw streams for binary ECR protocol
                 outputStream = socket.getOutputStream();
                 inputStream = socket.getInputStream();
 
                 isConnected.set(true);
                 shouldStopReading = false;
 
-                // Clear any existing data
                 synchronized (dataLock) {
                     receivedData.setLength(0);
                 }
 
-                // Add small delay for connection stabilization
                 Thread.sleep(100);
 
                 WritableMap result = Arguments.createMap();
@@ -89,7 +88,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
                 Log.i(TAG, String.format("TCP connection established to %s:%d", host, port));
                 promise.resolve(result);
 
-                // Start reading in background
                 startReading();
 
             } catch (ConnectException e) {
@@ -129,7 +127,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
 
                 closeResources();
 
-                // Clear received data buffer
                 synchronized (dataLock) {
                     receivedData.setLength(0);
                 }
@@ -169,11 +166,9 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
             try {
                 byte[] bytes = data.getBytes(StandardCharsets.ISO_8859_1);
                 
-                // Write data with proper error handling
                 outputStream.write(bytes);
                 outputStream.flush();
 
-                // Add small delay for ECR protocol timing
                 Thread.sleep(10);
 
                 Log.d(TAG, String.format("Sent %d bytes: %s", bytes.length, bytesToHex(bytes)));
@@ -188,7 +183,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
 
             } catch (IOException e) {
                 Log.e(TAG, "Error sending data", e);
-                // Connection might be broken
                 isConnected.set(false);
                 promise.reject("SEND_ERROR", "IO error sending data: " + e.getMessage());
             } catch (InterruptedException e) {
@@ -239,7 +233,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
         try {
             boolean connected = isConnected.get() && socket != null && !socket.isClosed() && socket.isConnected();
             
-            // Additional check: try to get socket info
             String status;
             if (connected) {
                 try {
@@ -346,7 +339,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
                 receivedData.setLength(0);
             }
 
-            // Flush output stream
             if (outputStream != null) {
                 outputStream.flush();
             }
@@ -380,7 +372,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
                         synchronized (dataLock) {
                             receivedData.append(receivedString);
                             
-                            // Prevent buffer overflow
                             if (receivedData.length() > 10000) {
                                 Log.w(TAG, "Receive buffer overflow, clearing old data");
                                 receivedData.delete(0, receivedData.length() - 5000);
@@ -396,7 +387,6 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
                     }
                     
                 } catch (SocketTimeoutException e) {
-                    // Normal timeout, continue reading
                     continue;
                 } catch (IOException e) {
                     if (isConnected.get()) {
@@ -459,15 +449,26 @@ public class ECRTcpModule extends ReactContextBaseJavaModule {
         return bytesToHex(str.getBytes(StandardCharsets.ISO_8859_1));
     }
 
+    // Implementing LifecycleEventListener methods
     @Override
-    public void onCatalystInstanceDestroy() {
-        super.onCatalystInstanceDestroy();
-        
-        Log.i(TAG, "Catalyst instance destroying, cleaning up TCP resources");
+    public void onHostResume() {
+        Log.i(TAG, "Host resumed");
+        // Add any logic needed when the host activity resumes
+    }
+
+    @Override
+    public void onHostPause() {
+        Log.i(TAG, "Host paused");
+        // Add any logic needed when the host activity pauses
+    }
+
+    @Override
+    public void onHostDestroy() {
+        Log.i(TAG, "Host destroying, cleaning up TCP resources");
         
         shouldStopReading = true;
         isConnected.set(false);
-        disconnect(null);
+        disconnect(null); // Ensure resources are cleaned up
         
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();

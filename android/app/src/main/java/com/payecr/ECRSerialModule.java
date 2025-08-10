@@ -16,6 +16,7 @@ import com.hoho.android.usbserial.driver.UsbSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.driver.UsbSerialProber;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
+import com.facebook.react.bridge.LifecycleEventListener; // Import LifecycleEventListener
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,7 +25,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ECRSerialModule extends ReactContextBaseJavaModule implements SerialInputOutputManager.Listener {
+// Implement LifecycleEventListener
+public class ECRSerialModule extends ReactContextBaseJavaModule implements SerialInputOutputManager.Listener, LifecycleEventListener {
 
     private static final String TAG = "ECRSerial";
     private static final String MODULE_NAME = "ECRSerial";
@@ -41,6 +43,8 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
     public ECRSerialModule(ReactApplicationContext reactContext) {
         super(reactContext);
         executorService = Executors.newSingleThreadExecutor();
+        // Register this module as a LifecycleEventListener
+        getReactApplicationContext().addLifecycleEventListener(this);
     }
 
     @Override
@@ -64,7 +68,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
             result.putString("message", drivers.isEmpty() ? "No USB serial devices found" :
                     drivers.size() + " USB serial device(s) found");
 
-            // Add device details for debugging
             if (!drivers.isEmpty()) {
                 StringBuilder deviceInfo = new StringBuilder();
                 for (int i = 0; i < drivers.size(); i++) {
@@ -89,7 +92,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
     public void openSerial(ReadableMap config, Promise promise) {
         executorService.execute(() -> {
             try {
-                // Close existing connection if any
                 if (isConnected.get()) {
                     closeSerial(null);
                 }
@@ -107,7 +109,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
                     return;
                 }
 
-                // Use first available driver
                 UsbSerialDriver driver = drivers.get(0);
                 UsbDeviceConnection connection = manager.openDevice(driver.getDevice());
 
@@ -126,7 +127,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
                 serialPort = ports.get(0);
                 serialPort.open(connection);
 
-                // Set serial parameters with validation
                 int baudRate = getConfigInt(config, "baudRate", 9600);
                 int dataBits = getConfigInt(config, "dataBits", 8);
                 int stopBits = mapStopBits(getConfigInt(config, "stopBits", 1));
@@ -134,16 +134,13 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
 
                 serialPort.setParameters(baudRate, dataBits, stopBits, parity);
                 
-                // Add small delay for hardware initialization
                 Thread.sleep(100);
 
-                // Start I/O manager for background reading
                 usbIoManager = new SerialInputOutputManager(serialPort, this);
                 Executors.newSingleThreadExecutor().submit(usbIoManager);
 
                 isConnected.set(true);
                 
-                // Clear any existing data
                 synchronized (dataLock) {
                     receivedData.setLength(0);
                 }
@@ -170,13 +167,11 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
             try {
                 isConnected.set(false);
 
-                // Stop I/O manager first
                 if (usbIoManager != null) {
                     usbIoManager.stop();
                     usbIoManager = null;
                 }
 
-                // Close serial port
                 if (serialPort != null) {
                     try {
                         serialPort.close();
@@ -186,7 +181,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
                     serialPort = null;
                 }
 
-                // Clear received data buffer
                 synchronized (dataLock) {
                     receivedData.setLength(0);
                 }
@@ -214,20 +208,14 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
             try {
                 byte[] bytes = data.getBytes(StandardCharsets.ISO_8859_1);
                 
-                // Write with timeout and validation
-                int bytesWritten = serialPort.write(bytes, WRITE_TIMEOUT);
+                serialPort.write(bytes, WRITE_TIMEOUT);
                 
-                if (bytesWritten != bytes.length) {
-                    Log.w(TAG, String.format("Partial write: %d of %d bytes written", bytesWritten, bytes.length));
-                }
-
-                // Add small delay for ECR protocol timing
                 Thread.sleep(10);
 
-                Log.d(TAG, String.format("Written %d bytes: %s", bytesWritten, bytesToHex(bytes)));
+                Log.d(TAG, String.format("Written %d bytes: %s", bytes.length, bytesToHex(bytes)));
 
                 WritableMap result = successResult("Data written successfully");
-                result.putInt("bytesWritten", bytesWritten);
+                result.putInt("bytesWritten", bytes.length);
                 result.putString("hexData", bytesToHex(bytes));
                 promise.resolve(result);
 
@@ -279,12 +267,7 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
             
             WritableMap result = Arguments.createMap();
             result.putBoolean("connected", connected);
-            
-            if (connected && serialPort != null) {
-                result.putString("status", "Connected and ready");
-            } else {
-                result.putString("status", "Not connected");
-            }
+            result.putString("status", connected ? "Connected and ready" : "Not connected");
             
             promise.resolve(result);
         } catch (Exception e) {
@@ -304,7 +287,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
                 receivedData.setLength(0);
             }
 
-            // Flush hardware buffers if supported
             if (serialPort != null) {
                 try {
                     serialPort.purgeHwBuffers(true, true);
@@ -320,7 +302,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
         }
     }
 
-    // SerialInputOutputManager.Listener implementation
     @Override
     public void onNewData(byte[] data) {
         try {
@@ -329,7 +310,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
             synchronized (dataLock) {
                 receivedData.append(receivedString);
                 
-                // Prevent buffer overflow
                 if (receivedData.length() > 10000) {
                     Log.w(TAG, "Receive buffer overflow, clearing old data");
                     receivedData.delete(0, receivedData.length() - 5000);
@@ -348,7 +328,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
         Log.e(TAG, "Serial communication error", e);
         isConnected.set(false);
         
-        // Clean up resources
         try {
             if (serialPort != null) {
                 serialPort.close();
@@ -359,7 +338,6 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
         }
     }
 
-    // Helper methods
     private UsbManager getUsbManager() {
         return (UsbManager) getReactApplicationContext().getSystemService(Context.USB_SERVICE);
     }
@@ -416,13 +394,24 @@ public class ECRSerialModule extends ReactContextBaseJavaModule implements Seria
         return bytesToHex(str.getBytes(StandardCharsets.ISO_8859_1));
     }
 
+    // Implementing LifecycleEventListener methods
     @Override
-    public void onCatalystInstanceDestroy() {
-        super.onCatalystInstanceDestroy();
-        
-        // Clean shutdown
+    public void onHostResume() {
+        Log.i(TAG, "Host resumed");
+        // Add any logic needed when the host activity resumes
+    }
+
+    @Override
+    public void onHostPause() {
+        Log.i(TAG, "Host paused");
+        // Add any logic needed when the host activity pauses
+    }
+
+    @Override
+    public void onHostDestroy() {
+        Log.i(TAG, "Host destroying, cleaning up serial resources");
         isConnected.set(false);
-        closeSerial(null);
+        closeSerial(null); // Ensure resources are cleaned up
         
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();

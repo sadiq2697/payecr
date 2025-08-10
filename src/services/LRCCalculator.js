@@ -117,4 +117,3 @@ export class LRCCalculator {
       .join(' ');
   }
 }
-

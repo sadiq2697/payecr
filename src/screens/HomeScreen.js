@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,38 +14,33 @@ import ResponseDisplay from '../components/ResponseDisplay';
 import LogViewer from '../components/LogViewer';
 
 const HomeScreen = () => {
-  // Create ECRService instance once (lazy initialization)
   const [ecrService] = useState(() => new ECRService());
-
-  // Track connection status to ECR terminal
   const [isConnected, setIsConnected] = useState(false);
-
-  // Store the last transaction or test response
   const [lastResponse, setLastResponse] = useState(null);
-
-  // Track whether logs should be visible
   const [showLogs, setShowLogs] = useState(false);
-
-  // Function to check current connection status
-  const checkConnectionStatus = useCallback(async () => {
-    try {
-      const connected = await ecrService.checkConnection();
-      setIsConnected(connected);
-    } catch (error) {
-      console.log('Error checking connection status:', error);
-      setIsConnected(false);
-    }
-  }, [ecrService]);
-
-  // Handle Android back button press
-  const handleBackPress = useCallback(() => {
-    // If logs are open, close them instead of exiting the app
+  
+  useEffect(() => {
+    // Handle Android back button
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    
+    // Check initial connection status
+    checkConnectionStatus();
+    
+    return () => {
+      backHandler.remove();
+      // Clean up connection on unmount
+      if (isConnected) {
+        ecrService.disconnect().catch(console.error);
+      }
+    };
+  }, []);
+  
+  const handleBackPress = () => {
     if (showLogs) {
       setShowLogs(false);
       return true;
     }
-
-    // If connected to ECR, prompt the user before exiting
+    
     if (isConnected) {
       Alert.alert(
         'Exit App',
@@ -56,7 +51,6 @@ const HomeScreen = () => {
             text: 'Disconnect & Exit', 
             style: 'destructive',
             onPress: () => {
-              // Disconnect and exit the app
               ecrService.disconnect().finally(() => {
                 BackHandler.exitApp();
               });
@@ -66,51 +60,35 @@ const HomeScreen = () => {
       );
       return true;
     }
-
-    // Returning false lets the default back action happen
+    
     return false;
-  }, [showLogs, isConnected, ecrService]);
-
-  // Run on component mount and cleanup on unmount
-  useEffect(() => {
-    // Register Android back button handler
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-
-    // Check connection status when the component mounts
-    checkConnectionStatus();
-
-    return () => {
-      // Remove back button handler on unmount
-      backHandler.remove();
-
-      // If connected, disconnect on unmount
-      if (isConnected) {
-        ecrService.disconnect().catch(console.error);
-      }
-    };
-  }, [handleBackPress, checkConnectionStatus, isConnected, ecrService]);
-
-  // Handle connection state changes from ConnectionSetup
+  };
+  
+  const checkConnectionStatus = async () => {
+    try {
+      const connected = await ecrService.checkConnection();
+      setIsConnected(connected);
+    } catch (error) {
+      console.log('Error checking connection status:', error);
+      setIsConnected(false);
+    }
+  };
+  
   const handleConnectionChange = (connected) => {
     setIsConnected(connected);
-
-    // Clear last response if disconnected
     if (!connected) {
       setLastResponse(null);
     }
   };
-
-  // Handle transaction result from TransactionForm
+  
   const handleTransactionResult = (result) => {
     setLastResponse(result);
   };
-
-  // Clear displayed response
+  
   const handleClearResponse = () => {
     setLastResponse(null);
   };
-
-  // Perform a quick echo test to check communication with ECR
+  
   const handleQuickEchoTest = async () => {
     if (!isConnected) {
       Alert.alert('Not Connected', 'Please connect to ECR terminal first');
@@ -131,19 +109,14 @@ const HomeScreen = () => {
       setLastResponse({ success: false, error: error.message });
     }
   };
-
-  // AppBar (header) UI
+  
   const renderAppBar = () => (
     <Appbar.Header>
       <Appbar.Content title="ECR Test App" subtitle="Paysys Terminal Communication" />
-
-      {/* Toggle log viewer */}
       <Appbar.Action
         icon={showLogs ? "close" : "text-box-outline"}
         onPress={() => setShowLogs(!showLogs)}
       />
-
-      {/* Help / About button */}
       <Appbar.Action
         icon="help-circle-outline"
         onPress={() => {
@@ -162,8 +135,7 @@ const HomeScreen = () => {
       />
     </Appbar.Header>
   );
-
-  // Main screen with connection setup and transactions
+  
   const renderMainContent = () => (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <ConnectionSetup
@@ -185,19 +157,17 @@ const HomeScreen = () => {
       )}
     </ScrollView>
   );
-
-  // Log viewer screen
+  
   const renderLogContent = () => (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LogViewer ecrService={ecrService} />
     </ScrollView>
   );
-
+  
   return (
     <View style={styles.root}>
       {renderAppBar()}
       
-      {/* Show logs or main content based on state */}
       {showLogs ? renderLogContent() : renderMainContent()}
       
       {/* Floating Action Button for quick echo test */}
@@ -231,3 +201,4 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
+
