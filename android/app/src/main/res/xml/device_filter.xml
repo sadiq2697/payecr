@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Replace with your device's vendor-id and product-id -->
-    <usb-device vendor-id="4292" product-id="60000" />
+    <!-- Universal USB device detection - no specific vendor/product filters -->
+    <!-- This allows the app to be notified of any USB device attachment -->
 </resources>

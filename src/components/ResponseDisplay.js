@@ -143,7 +143,7 @@ const ResponseDisplay = ({ response, onClear }) => {
     
     // Amount fields
     if (response.amount) {
-      const formattedAmount = (parseInt(response.amount) / 100).toFixed(2);
+      const formattedAmount = (parseInt(response.amount, 10) / 100).toFixed(2);
       details.push({ label: 'Amount', value: `RM ${formattedAmount}` });
     }
     

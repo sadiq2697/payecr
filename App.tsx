@@ -27,8 +27,7 @@ const App = () => {
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
         <StatusBar
-          barStyle="light-content"
-          backgroundColor={theme.colors.primary}
+          hidden={true}
         />
         <HomeScreen/>
       </PaperProvider>

@@ -1,233 +1,357 @@
+// MessageBuilder.js 
+
 import { ECR_CONSTANTS } from '../utils/Constants';
 import { LRCCalculator } from './LRCCalculator';
 
-/**
- * ECR Message Builder
- * Constructs properly formatted ECR command messages
- */
+// Destructure constants for cleaner usage
+const {
+  COMMANDS,
+  FIELD_LENGTHS,
+  HOST_NUMBERS,
+  QR_CODE_IDS,
+  CONTROL_CHARS: { STX, ETX, ENQ, ACK, NAK, EOT }
+} = ECR_CONSTANTS;
+
 export class MessageBuilder {
-  
-  /**
-   * Build a Sale transaction command (C200)
-   * @param {string} hostNo - Host number (2 digits)
-   * @param {number} amount - Transaction amount in cents
-   * @param {string} additionalData - Additional data (24 chars max)
-   * @returns {string} Complete ECR command message
-   */
-  buildSaleCommand(hostNo, amount, additionalData = '') {
-    const command = ECR_CONSTANTS.COMMANDS.SALE;
-    const paddedHostNo = this.padHostNumber(hostNo);
-    const paddedAmount = this.padAmount(amount);
-    const paddedData = this.padAdditionalData(additionalData);
-    
-    const message = command + paddedHostNo + paddedAmount + paddedData;
-    return this.wrapMessage(message);
+  buildSaleCommand(hostNo, amount, additionalData = '', printReceipt = false) {
+    this._validateAmount(amount, 'Sale');
+    this._validateHostNumber(hostNo, 'Sale');
+    this._validateAdditionalData(additionalData, 'Sale');
+
+    // Receipt control as separate field
+    const receiptFlag = printReceipt ? '1' : '0';
+
+    return this.wrapMessage(
+      COMMANDS.SALE +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      this.padAdditionalData(additionalData) +
+      receiptFlag
+    );
   }
-  
-  /**
-   * Build a Void transaction command (C201)
-   * @param {string} hostNo - Host number (2 digits)
-   * @param {string} traceNumber - Original transaction trace number (6 digits)
-   * @param {string} additionalData - Additional data (24 chars max)
-   * @returns {string} Complete ECR command message
-   */
-  buildVoidCommand(hostNo, traceNumber, additionalData = '') {
-    const command = ECR_CONSTANTS.COMMANDS.VOID;
-    const paddedHostNo = this.padHostNumber(hostNo);
-    const paddedTrace = traceNumber.toString().padStart(6, '0');
-    const paddedData = this.padAdditionalData(additionalData);
-    
-    const message = command + paddedHostNo + paddedTrace + paddedData;
-    return this.wrapMessage(message);
+
+  buildVoidCommand(hostNo, traceNumber, amount) {
+    this._validateAmount(amount, 'Void', true);
+    this._validateHostNumber(hostNo, 'Void');
+    if (!/^[0-9]{6}$/.test(traceNumber)) {
+      throw new Error(`Invalid traceNumber for Void. Must be 6 digits. Got: ${traceNumber}`);
+    }
+
+    return this.wrapMessage(
+      COMMANDS.VOID +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      traceNumber.padStart(6, '0')
+    );
   }
-  
-  /**
-   * Build a Refund transaction command (C203)
-   * @param {string} hostNo - Host number (2 digits)
-   * @param {number} amount - Refund amount in cents
-   * @param {number} originalAmount - Original transaction amount in cents
-   * @param {string} additionalData - Additional data (24 chars max)
-   * @returns {string} Complete ECR command message
-   */
-  buildRefundCommand(hostNo, amount, originalAmount, additionalData = '') {
-    const command = ECR_CONSTANTS.COMMANDS.REFUND;
-    const paddedHostNo = this.padHostNumber(hostNo);
-    const paddedAmount = this.padAmount(amount);
-    const paddedOrigAmount = this.padAmount(originalAmount);
-    const paddedData = this.padAdditionalData(additionalData);
-    
-    const message = command + paddedHostNo + paddedAmount + paddedOrigAmount + paddedData;
-    return this.wrapMessage(message);
+
+  buildRefundCommand(hostNo, amount, originalAmount, additionalData = '', printReceipt = false) {
+    this._validateAmount(amount, 'Refund');
+    this._validateAmount(originalAmount, 'Refund Original Amount');
+    this._validateHostNumber(hostNo, 'Refund');
+    this._validateAdditionalData(additionalData, 'Refund');
+
+    // Receipt control as separate field
+    const receiptFlag = printReceipt ? '1' : '0';
+
+    return this.wrapMessage(
+      COMMANDS.REFUND +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      this.padAmount(originalAmount) +
+      this.padAdditionalData(additionalData) +
+      receiptFlag
+    );
   }
-  
-  /**
-   * Build a PreAuth transaction command (C100)
-   * @param {string} hostNo - Host number (2 digits)
-   * @param {number} amount - Authorization amount in cents
-   * @param {string} additionalData - Additional data (24 chars max)
-   * @returns {string} Complete ECR command message
-   */
-  buildPreAuthCommand(hostNo, amount, additionalData = '') {
-    const command = ECR_CONSTANTS.COMMANDS.PREAUTH;
-    const paddedHostNo = this.padHostNumber(hostNo);
-    const paddedAmount = this.padAmount(amount);
-    const paddedData = this.padAdditionalData(additionalData);
-    
-    const message = command + paddedHostNo + paddedAmount + paddedData;
-    return this.wrapMessage(message);
+
+  buildPreAuthCommand(hostNo, amount, additionalData = '', printReceipt = false) {
+    this._validateAmount(amount, 'PreAuth');
+    this._validateHostNumber(hostNo, 'PreAuth');
+    this._validateAdditionalData(additionalData, 'PreAuth');
+
+    // Receipt control as separate field
+    const receiptFlag = printReceipt ? '1' : '0';
+
+    return this.wrapMessage(
+      COMMANDS.PREAUTH +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      this.padAdditionalData(additionalData) +
+      receiptFlag
+    );
   }
-  
-  /**
-   * Build a Settlement command (C500)
-   * @param {string} hostNo - Host number (2 digits)
-   * @returns {string} Complete ECR command message
-   */
+
   buildSettlementCommand(hostNo) {
-    const command = ECR_CONSTANTS.COMMANDS.SETTLEMENT;
-    const paddedHostNo = this.padHostNumber(hostNo);
-    
-    const message = command + paddedHostNo;
-    return this.wrapMessage(message);
+    this._validateHostNumber(hostNo, 'Settlement');
+    return this.wrapMessage(COMMANDS.SETTLEMENT + this.padHostNumber(hostNo));
   }
-  
-  /**
-   * Build an Echo Test command (C902)
-   * @returns {string} Complete ECR command message
-   */
+
   buildEchoTestCommand() {
-    const command = ECR_CONSTANTS.COMMANDS.ECHO_TEST;
-    return this.wrapMessage(command);
+    return this.wrapMessage(COMMANDS.ECHO_TEST);
   }
-  
-  /**
-   * Build a QR/Wallet Sale command (C290)
-   * @param {string} hostNo - Host number (2 digits)
-   * @param {number} amount - Transaction amount in cents
-   * @param {string} qrCodeId - QR Code ID (2 digits)
-   * @param {string} qrCode - QR Code data
-   * @param {string} additionalData - Additional data (24 chars max)
-   * @returns {string} Complete ECR command message
-   */
-  buildWalletSaleCommand(hostNo, amount, qrCodeId, qrCode = '', additionalData = '') {
-    const command = ECR_CONSTANTS.COMMANDS.WALLET_SALE;
-    const paddedHostNo = this.padHostNumber(hostNo);
-    const paddedAmount = this.padAmount(amount);
-    const paddedQrId = qrCodeId.toString().padStart(2, '0');
-    
-    let qrData = '';
-    if (qrCode) {
-      const qrLength = qrCode.length.toString().padStart(4, '0');
-      qrData = paddedQrId + qrLength + qrCode;
-    } else {
-      qrData = paddedQrId + '0000';
+
+  buildWalletSaleCommand(hostNo, amount, qrCodeId, qrCode = '', additionalData = '', printReceipt = false) {
+    this._validateAmount(amount, 'Wallet Sale');
+    this._validateHostNumber(hostNo, 'Wallet Sale');
+    this._validateAdditionalData(additionalData, 'Wallet Sale');
+
+    if (!Object.values(QR_CODE_IDS).includes(qrCodeId)) {
+      throw new Error(`Invalid qrCodeId. Must be one of ${Object.values(QR_CODE_IDS).join(', ')}.`);
     }
+    if (qrCode && typeof qrCode !== 'string') {
+      throw new Error(`Invalid qrCode. Must be a string.`);
+    }
+
+    // Receipt control as separate field
+    const receiptFlag = printReceipt ? '1' : '0';
+
+    const qrData = qrCode
+      ? qrCodeId.padStart(2, '0') + qrCode.length.toString().padStart(FIELD_LENGTHS.QR_DATA_LENGTH, '0') + qrCode
+      : qrCodeId.padStart(2, '0') + '0000';
+
+    return this.wrapMessage(
+      COMMANDS.WALLET_SALE +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      qrData +
+      this.padAdditionalData(additionalData) +
+      receiptFlag
+    );
+  }
+
+  buildReadCardCommand() {
+    return this.wrapMessage(COMMANDS.READ_CARD);
+  }
+
+  buildTransactionStatusCommand(uniqueId, originalAmount = 0, printReceipt = false) {
+    if (!uniqueId.startsWith('TT')) {
+      throw new Error(`Invalid uniqueId. Must start with "TT".`);
+    }
+    this._validateAmount(originalAmount, 'Transaction Status Original Amount', true);
+    if (typeof printReceipt !== 'boolean') {
+      throw new Error(`Invalid printReceipt. Must be boolean.`);
+    }
+
+    return this.wrapMessage(
+      COMMANDS.TRANSACTION_STATUS +
+      uniqueId.padEnd(FIELD_LENGTHS.ADDITIONAL_DATA, ' ') +
+      this.padAmount(originalAmount) +
+      (printReceipt ? '1' : '0')
+    );
+  }
+
+
+  // ===== Enhanced QR and Wallet Commands =====
+
+  buildWalletRefundCommand(hostNo, amount, originalAmount, qrCodeId, additionalData = '', printReceipt = false) {
+    this._validateAmount(amount, 'Wallet Refund');
+    this._validateAmount(originalAmount, 'Wallet Refund Original Amount');
+    this._validateHostNumber(hostNo, 'Wallet Refund');
+    this._validateAdditionalData(additionalData, 'Wallet Refund');
+
+    if (!Object.values(QR_CODE_IDS).includes(qrCodeId)) {
+      throw new Error(`Invalid qrCodeId. Must be one of ${Object.values(QR_CODE_IDS).join(', ')}.`);
+    }
+
+    // Receipt control as separate field
+    const receiptFlag = printReceipt ? '1' : '0';
+
+    return this.wrapMessage(
+      COMMANDS.WALLET_REFUND +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      this.padAmount(originalAmount) +
+      qrCodeId.padStart(2, '0') +
+      this.padAdditionalData(additionalData) +
+      receiptFlag
+    );
+  }
+
+  buildScanQRCommand() {
+    return this.wrapMessage(COMMANDS.SCAN_QR);
+  }
+
+  // ===== Cash Advance Commands =====
+
+  buildCashAdvanceCommand(hostNo, amount, additionalData = '') {
+    this._validateAmount(amount, 'Cash Advance');
+    this._validateHostNumber(hostNo, 'Cash Advance');
+    this._validateAdditionalData(additionalData, 'Cash Advance');
+
+    return this.wrapMessage(
+      COMMANDS.CASH_ADVANCE +
+      this.padHostNumber(hostNo) +
+      this.padAmount(amount) +
+      this.padAdditionalData(additionalData)
+    );
+  }
+
+  buildSaleWithCashCommand(hostNo, saleAmount, cashAmount, additionalData = '') {
+    this._validateAmount(saleAmount, 'Sale with Cash - Sale Amount');
+    this._validateAmount(cashAmount, 'Sale with Cash - Cash Amount');
+    this._validateHostNumber(hostNo, 'Sale with Cash');
+    this._validateAdditionalData(additionalData, 'Sale with Cash');
+
+    return this.wrapMessage(
+      COMMANDS.SALE_WITH_CASH +
+      this.padHostNumber(hostNo) +
+      this.padAmount(saleAmount) +
+      this.padAmount(cashAmount) +
+      this.padAdditionalData(additionalData)
+    );
+  }
+
+  buildAdjustCommand(hostNo, originalAmount, adjustedAmount, traceNumber) {
+    this._validateAmount(originalAmount, 'Adjust Original Amount');
+    this._validateAmount(adjustedAmount, 'Adjust New Amount');
+    this._validateHostNumber(hostNo, 'Adjust');
+    if (!/^[0-9]{6}$/.test(traceNumber)) {
+      throw new Error(`Invalid traceNumber for Adjust. Must be 6 digits.`);
+    }
+
+    return this.wrapMessage(
+      COMMANDS.ADJUST +
+      this.padHostNumber(hostNo) +
+      this.padAmount(originalAmount) +
+      this.padAmount(adjustedAmount) +
+      traceNumber.padStart(6, '0')
+    );
+  }
+
+  // ===== Helpers =====
+
+  wrapMessage(message) {
+    const withEtx = message + ETX;
+    const lrc = LRCCalculator.calculate(withEtx);
+    return STX + withEtx + String.fromCharCode(lrc);
+  }
+
+  padHostNumber(hostNo) {
+    // Handle special host numbers and numeric ones
+    if (Object.values(HOST_NUMBERS).includes(hostNo)) {
+      return hostNo; // CP, QR, DN are already correct length
+    }
+    if (!/^[0-9]{1,2}$/.test(hostNo)) {
+      throw new Error(`Invalid host number: ${hostNo}. Must be numeric (00-99) or special (CP, QR, DN).`);
+    }
+    return hostNo.padStart(FIELD_LENGTHS.HOST_NO, '0');
+  }
+
+  padAmount(amount) {
+    return amount.toString().padStart(FIELD_LENGTHS.AMOUNT, '0');
+  }
+
+  padAdditionalData(data) {
+    return data.padEnd(FIELD_LENGTHS.ADDITIONAL_DATA, ' ');
+  }
+
+  // Control character creators using destructured constants
+  createENQ() { return ENQ; }
+  createACK() { return ACK; }
+  createNAK() { return NAK; }
+  createEOT() { return EOT; }
+  createABORT() { return 'ABORT'; }
+
+  getMessageHex(message) { 
+    return LRCCalculator.stringToHex(message); 
+  }
+
+  // ===== Validation Helpers =====
+
+  _validateAmount(amount, context, allowZero = false) {
+    if (!Number.isInteger(amount) || amount < 0 || (!allowZero && amount === 0)) {
+      throw new Error(`Invalid ${context} amount. Must be positive integer${allowZero ? ' or zero' : ''}.`);
+    }
+    if (amount > 999999999999) { // 12 digit limit
+      throw new Error(`${context} amount exceeds maximum value (999999999999 cents).`);
+    }
+  }
+
+  _validateHostNumber(hostNo, context) {
+    const validHosts = Object.values(HOST_NUMBERS);
+    const isNumericHost = /^[0-9]{1,2}$/.test(hostNo);
     
-    const paddedData = this.padAdditionalData(additionalData);
-    
-    const message = command + paddedHostNo + paddedAmount + qrData + paddedData;
+    if (!validHosts.includes(hostNo) && !isNumericHost) {
+      throw new Error(`Invalid host number for ${context}. Must be ${validHosts.join(', ')} or numeric (00-99).`);
+    }
+  }
+
+  _validateAdditionalData(data, context) {
+    if (typeof data !== 'string') {
+      throw new Error(`Invalid additional data for ${context}. Must be string.`);
+    }
+    if (data.length > FIELD_LENGTHS.ADDITIONAL_DATA) {
+      throw new Error(`Additional data for ${context} exceeds ${FIELD_LENGTHS.ADDITIONAL_DATA} characters.`);
+    }
+  }
+
+  _validateTraceNumber(traceNumber, context) {
+    if (!/^[0-9]{1,6}$/.test(traceNumber)) {
+      throw new Error(`Invalid trace number for ${context}. Must be 1-6 digits.`);
+    }
+  }
+
+  // ===== Utility Methods =====
+
+  /**
+   * Create a complete transaction message with proper formatting
+   * @param {string} command - Command code
+   * @param {Array} fields - Array of field values
+   * @returns {string} Complete message
+   */
+  createTransactionMessage(command, fields = []) {
+    const message = command + fields.join('');
     return this.wrapMessage(message);
   }
-  
+
   /**
-   * Build a Read Card command (C910)
-   * @returns {string} Complete ECR command message
+   * Validate QR code data format
+   * @param {string} qrCode - QR code data
+   * @param {string} qrCodeId - QR code type ID
+   * @returns {boolean} True if valid
    */
-  buildReadCardCommand() {
-    const command = ECR_CONSTANTS.COMMANDS.READ_CARD;
-    return this.wrapMessage(command);
-  }
-  
-  /**
-   * Wrap message with STX, ETX, and LRC
-   * @param {string} message - Raw message content
-   * @returns {string} Complete wrapped message
-   */
-  wrapMessage(message) {
-    const stx = ECR_CONSTANTS.STX;
-    const etx = ECR_CONSTANTS.ETX;
-    const messageWithEtx = message + etx;
-    const lrc = LRCCalculator.calculate(messageWithEtx);
-    
-    return stx + messageWithEtx + String.fromCharCode(lrc);
-  }
-  
-  /**
-   * Pad host number to 2 digits
-   * @param {string} hostNo - Host number
-   * @returns {string} Padded host number
-   */
-  padHostNumber(hostNo) {
-    if (hostNo === 'CP' || hostNo === 'QR' || hostNo === 'DN') {
-      return hostNo;
+  validateQRCode(qrCode, qrCodeId) {
+    if (!qrCode || typeof qrCode !== 'string') {
+      return false;
     }
-    return hostNo.toString().padStart(2, '0');
+
+    // Basic validation based on QR type
+    switch (qrCodeId) {
+      case QR_CODE_IDS.ALIPAY:
+        return qrCode.includes('alipay') || qrCode.length > 10;
+      case QR_CODE_IDS.MBB_QRPAY:
+        return qrCode.includes('maybank') || qrCode.length > 10;
+      case QR_CODE_IDS.GHL_MAH:
+        return qrCode.length > 10;
+      case QR_CODE_IDS.HLB_GTX:
+        return qrCode.length > 10;
+      default:
+        return qrCode.length > 10;
+    }
   }
-  
+
   /**
-   * Pad amount to 12 digits (left padded with zeros)
-   * @param {number} amount - Amount in cents
-   * @returns {string} Padded amount string
+   * Get command description for logging
+   * @param {string} commandCode - Command code (e.g., 'C200')
+   * @returns {string} Human readable description
    */
-  padAmount(amount) {
-    return amount.toString().padStart(ECR_CONSTANTS.FIELD_LENGTHS.AMOUNT, '0');
-  }
-  
-  /**
-   * Pad additional data to 24 characters (right padded with spaces)
-   * @param {string} data - Additional data
-   * @returns {string} Padded data string
-   */
-  padAdditionalData(data) {
-    return data.padEnd(ECR_CONSTANTS.FIELD_LENGTHS.ADDITIONAL_DATA, ' ');
-  }
-  
-  /**
-   * Create ENQ (Enquiry) message
-   * @returns {string} ENQ character
-   */
-  createENQ() {
-    return ECR_CONSTANTS.ENQ;
-  }
-  
-  /**
-   * Create ACK (Acknowledge) message
-   * @returns {string} ACK character
-   */
-  createACK() {
-    return ECR_CONSTANTS.ACK;
-  }
-  
-  /**
-   * Create NAK (Negative Acknowledge) message
-   * @returns {string} NAK character
-   */
-  createNAK() {
-    return ECR_CONSTANTS.NAK;
-  }
-  
-  /**
-   * Create EOT (End of Transmission) message
-   * @returns {string} EOT character
-   */
-  createEOT() {
-    return ECR_CONSTANTS.EOT;
-  }
-  
-  /**
-   * Create ABORT message
-   * @returns {string} ABORT string
-   */
-  createABORT() {
-    return 'ABORT';
-  }
-  
-  /**
-   * Get message hex representation for debugging
-   * @param {string} message - Message to convert
-   * @returns {string} Hex representation
-   */
-  getMessageHex(message) {
-    return LRCCalculator.stringToHex(message);
+  getCommandDescription(commandCode) {
+    const descriptions = {
+      [COMMANDS.SALE]: 'Sale Transaction',
+      [COMMANDS.VOID]: 'Void Transaction',
+      [COMMANDS.REFUND]: 'Refund Transaction',
+      [COMMANDS.PREAUTH]: 'Pre-Authorization',
+      [COMMANDS.SETTLEMENT]: 'Settlement',
+      [COMMANDS.ECHO_TEST]: 'Echo Test',
+      [COMMANDS.WALLET_SALE]: 'Wallet Sale',
+      [COMMANDS.WALLET_REFUND]: 'Wallet Refund',
+      [COMMANDS.READ_CARD]: 'Read Card',
+      [COMMANDS.SCAN_QR]: 'Scan QR Code',
+      [COMMANDS.CASH_ADVANCE]: 'Cash Advance',
+      [COMMANDS.SALE_WITH_CASH]: 'Sale with Cash',
+      [COMMANDS.ADJUST]: 'Adjustment'
+    };
+    
+    return descriptions[commandCode] || `Unknown Command: ${commandCode}`;
   }
 }
-

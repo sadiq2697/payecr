@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
-  Alert,
-  BackHandler
+  BackHandler,
+  Modal,
+  TouchableOpacity
 } from 'react-native';
-import { Appbar, FAB } from 'react-native-paper';
+import { FAB, Button } from 'react-native-paper';
 import { ECRService } from '../services/ECRService';
 import ConnectionSetup from '../components/ConnectionSetup';
 import TransactionForm from '../components/TransactionForm';
@@ -18,6 +20,20 @@ const HomeScreen = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastResponse, setLastResponse] = useState(null);
   const [showLogs, setShowLogs] = useState(false);
+  
+  // Custom Alert Modal
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  
+  // Exit Confirmation Modal
+  const [showExitModal, setShowExitModal] = useState(false);
+
+  const showAlert = (title, message) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setShowAlertModal(true);
+  };
   
   useEffect(() => {
     // Handle Android back button
@@ -42,22 +58,7 @@ const HomeScreen = () => {
     }
     
     if (isConnected) {
-      Alert.alert(
-        'Exit App',
-        'You are currently connected to the ECR terminal. Do you want to disconnect and exit?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Disconnect & Exit', 
-            style: 'destructive',
-            onPress: () => {
-              ecrService.disconnect().finally(() => {
-                BackHandler.exitApp();
-              });
-            }
-          }
-        ]
-      );
+      setShowExitModal(true);
       return true;
     }
     
@@ -91,7 +92,7 @@ const HomeScreen = () => {
   
   const handleQuickEchoTest = async () => {
     if (!isConnected) {
-      Alert.alert('Not Connected', 'Please connect to ECR terminal first');
+      showAlert('Not Connected', 'Please connect to ECR terminal first');
       return;
     }
     
@@ -99,42 +100,16 @@ const HomeScreen = () => {
       const result = await ecrService.performEchoTest();
       setLastResponse(result);
       
-      Alert.alert(
+      showAlert(
         'Echo Test Result',
-        result.success ? 'Communication test successful!' : 'Communication test failed',
-        [{ text: 'OK' }]
+        result.success ? 'Communication test successful!' : 'Communication test failed'
       );
     } catch (error) {
-      Alert.alert('Echo Test Error', error.message);
+      showAlert('Echo Test Error', error.message);
       setLastResponse({ success: false, error: error.message });
     }
   };
   
-  const renderAppBar = () => (
-    <Appbar.Header>
-      <Appbar.Content title="ECR Test App" subtitle="Paysys Terminal Communication" />
-      <Appbar.Action
-        icon={showLogs ? "close" : "text-box-outline"}
-        onPress={() => setShowLogs(!showLogs)}
-      />
-      <Appbar.Action
-        icon="help-circle-outline"
-        onPress={() => {
-          Alert.alert(
-            'About ECR Test App',
-            'This app allows you to test communication with Paysys ECR terminals via Serial or TCP/IP connection.\n\n' +
-            'Features:\n' +
-            '• Serial and TCP/IP communication\n' +
-            '• Transaction testing (Sale, Void, Refund, etc.)\n' +
-            '• Real-time communication logging\n' +
-            '• Response parsing and display\n\n' +
-            'Make sure your terminal is properly configured before connecting.',
-            [{ text: 'OK' }]
-          );
-        }}
-      />
-    </Appbar.Header>
-  );
   
   const renderMainContent = () => (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -166,19 +141,85 @@ const HomeScreen = () => {
   
   return (
     <View style={styles.root}>
-      {renderAppBar()}
-      
       {showLogs ? renderLogContent() : renderMainContent()}
       
-      {/* Floating Action Button for quick echo test */}
-      {isConnected && !showLogs && (
-        <FAB
-          style={styles.fab}
-          icon="wifi"
-          label="Echo Test"
-          onPress={handleQuickEchoTest}
-        />
-      )}
+      {/* Floating Exit Button */}
+      <FAB
+        style={styles.exitFab}
+        icon="close"
+        onPress={() => setShowExitModal(true)}
+        color="white"
+        size="small"
+      />
+      
+      {/* Custom Alert Modal */}
+      <Modal
+        visible={showAlertModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowAlertModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.alertModalContent}>
+            <Text style={styles.modalTitle}>{alertTitle}</Text>
+            <Text style={styles.modalSubtitle}>{alertMessage}</Text>
+            
+            <Button 
+              mode="contained" 
+              onPress={() => setShowAlertModal(false)}
+              style={styles.alertButton}
+            >
+              OK
+            </Button>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Exit Confirmation Modal */}
+      <Modal
+        visible={showExitModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowExitModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.exitModalContent}>
+            <Text style={styles.modalTitle}>Exit App</Text>
+            <Text style={styles.modalSubtitle}>
+              {isConnected 
+                ? 'You are currently connected to the ECR terminal. Do you want to disconnect and exit?'
+                : 'Are you sure you want to exit?'
+              }
+            </Text>
+            
+            <View style={styles.exitModalButtons}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setShowExitModal(false)}
+                style={styles.exitButton}
+              >
+                Cancel
+              </Button>
+              <Button 
+                mode="contained" 
+                onPress={() => {
+                  if (isConnected) {
+                    ecrService.disconnect().finally(() => {
+                      BackHandler.exitApp();
+                    });
+                  } else {
+                    BackHandler.exitApp();
+                  }
+                }}
+                style={styles.exitButton}
+                buttonColor="#f44336"
+              >
+                {isConnected ? 'Disconnect & Exit' : 'Exit'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -191,12 +232,58 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  fab: {
+  exitFab: {
     position: 'absolute',
     margin: 16,
     right: 0,
-    bottom: 0,
-    backgroundColor: '#2196F3',
+    top: 20,
+    backgroundColor: '#f44336',
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 350,
+  },
+  exitModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  exitModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  exitButton: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  alertButton: {
+    marginTop: 16,
   },
 });
 
