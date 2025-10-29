@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ToastManager = () => {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = (message, type = 'info', duration = 3000, action = null) => {
+  const showToast = useCallback((message, type = 'info', duration = 3000, action = null) => {
     const id = Date.now() + Math.random();
     const newToast = {
       id,
@@ -32,20 +32,20 @@ const ToastManager = () => {
 
     if (duration > 0) {
       setTimeout(() => {
-        hideToast(id);
+        setToasts(prev => prev.filter(toast => toast.id !== id));
       }, duration);
     }
 
     return id;
-  };
+  }, []);
 
-  const hideToast = (id) => {
+  const hideToast = useCallback((id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, []);
 
-  const hideAllToasts = () => {
+  const hideAllToasts = useCallback(() => {
     setToasts([]);
-  };
+  }, []);
 
   // Expose methods globally
   useEffect(() => {
@@ -58,7 +58,7 @@ const ToastManager = () => {
       delete global.hideToast;
       delete global.hideAllToasts;
     };
-  }, []);
+  }, [showToast, hideToast, hideAllToasts]);
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -108,7 +108,7 @@ const ToastItem = ({ toast, onHide }) => {
         }),
       ]).start();
     };
-  }, []);
+  }, [opacity, translateY]);
 
   const handleHide = () => {
     Animated.parallel([

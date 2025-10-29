@@ -1,16 +1,16 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
   Animated,
   Dimensions,
-  PanGestureHandler,
   StyleSheet,
   BackHandler,
 } from 'react-native';
-import { BlurView } from '@react-native-blur/blur';
+import { PanGestureHandler } from 'react-native-gesture-handler';
+// import { BlurView } from '@react-native-blur/blur'; // Removed - not available
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /**
  * Advanced Modal with animations, gestures, and blur effects
@@ -38,7 +38,7 @@ const AdvancedModal = ({
     } else {
       hideModal();
     }
-  }, [visible]);
+  }, [visible, showModal, hideModal]);
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -52,7 +52,7 @@ const AdvancedModal = ({
     return () => backHandler.remove();
   }, [visible, onClose]);
 
-  const showModal = () => {
+  const showModal = useCallback(() => {
     const animations = [
       Animated.timing(backdropAnim, {
         toValue: 1,
@@ -98,9 +98,9 @@ const AdvancedModal = ({
     }
 
     Animated.parallel(animations).start();
-  };
+  }, [backdropAnim, slideAnim, scaleAnim, fadeAnim, animationType]);
 
-  const hideModal = () => {
+  const hideModal = useCallback(() => {
     const animations = [
       Animated.timing(backdropAnim, {
         toValue: 0,
@@ -141,7 +141,7 @@ const AdvancedModal = ({
     }
 
     Animated.parallel(animations).start();
-  };
+  }, [backdropAnim, slideAnim, scaleAnim, fadeAnim, animationType]);
 
   const onGestureEvent = Animated.event(
     [{ nativeEvent: { translationY: translateY } }],
@@ -213,16 +213,10 @@ const AdvancedModal = ({
 
   if (!visible) return null;
 
-  const BackdropComponent = blurBackground ? BlurView : View;
-  const backdropProps = blurBackground
-    ? {
-        style: styles.backdrop,
-        blurType: 'light',
-        blurAmount: 10,
-      }
-    : {
-        style: [styles.backdrop, styles.solidBackdrop],
-      };
+  const BackdropComponent = View;
+  const backdropProps = {
+    style: [styles.backdrop, styles.solidBackdrop],
+  };
 
   return (
     <Modal
@@ -231,7 +225,7 @@ const AdvancedModal = ({
       animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, animationType === 'scale' && styles.centeredContainer]}>
         <Animated.View
           style={[
             styles.backdropContainer,
@@ -254,6 +248,7 @@ const AdvancedModal = ({
           <Animated.View
             style={[
               styles.modalContainer,
+              animationType === 'scale' && styles.centeredModal,
               {
                 transform: getModalTransform(),
                 opacity: getModalOpacity(),
@@ -278,6 +273,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  centeredContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   backdropContainer: {
     position: 'absolute',
@@ -306,6 +306,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
+  },
+  centeredModal: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
   },
   swipeHandle: {
     alignItems: 'center',

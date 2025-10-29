@@ -6,6 +6,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Text, Card, IconButton, Chip } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AnimatedStatusIndicator from '../AnimatedStatusIndicator';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -246,11 +247,11 @@ const RecentActivityWidget = ({ recentActivity }) => {
 
   const getActivityIcon = (type) => {
     switch (type) {
-      case 'connection': return '🔌';
-      case 'transaction': return '💳';
-      case 'error': return '⚠️';
-      case 'device': return '📱';
-      default: return 'ℹ️';
+      case 'connection': return 'power-plug';
+      case 'transaction': return 'credit-card';
+      case 'error': return 'alert';
+      case 'device': return 'cellphone';
+      default: return 'information';
     }
   };
 
@@ -276,9 +277,9 @@ const RecentActivityWidget = ({ recentActivity }) => {
       ) : (
         activities.slice(0, 5).map((activity, index) => (
           <View key={index} style={styles.activityItem}>
-            <Text style={styles.activityIcon}>
-              {getActivityIcon(activity.type)}
-            </Text>
+            <View style={styles.activityIcon}>
+              <Icon name={getActivityIcon(activity.type)} size={16} color="#666" />
+            </View>
             <View style={styles.activityContent}>
               <Text style={styles.activityTitle}>{activity.title}</Text>
               <Text style={styles.activityDescription}>

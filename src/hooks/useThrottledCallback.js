@@ -24,7 +24,7 @@ export const useThrottledCallback = (callback, delay = 100, deps = []) => {
         lastRun.current = Date.now();
       }, remaining);
     }
-  }, [callback, delay, ...deps]);
+  }, [callback, delay]);
 };
 
 // Debounced callback for search/input fields
@@ -39,7 +39,7 @@ export const useDebouncedCallback = (callback, delay = 300, deps = []) => {
     timeoutRef.current = setTimeout(() => {
       callback(...args);
     }, delay);
-  }, [callback, delay, ...deps]);
+  }, [callback, delay]);
 };
 
 // Animation frame callback for smooth animations
@@ -54,5 +54,5 @@ export const useAnimationFrameCallback = (callback, deps = []) => {
     rafRef.current = requestAnimationFrame(() => {
       callback(...args);
     });
-  }, [callback, ...deps]);
+  }, [callback]);
 };

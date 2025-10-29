@@ -46,33 +46,73 @@ export const ECR_CONSTANTS = Object.freeze({
   /** ECR command codes */
   COMMANDS: Object.freeze({
     PREAUTH: 'C100',
+    PREAUTH_PARKING: 'C101',
     SALE: 'C200',
     VOID: 'C201',
     REFUND: 'C203',
+    CASH_BACK: 'C205',
     TRANSACTION_STATUS: 'C208',
+    ADJUST: 'C220',
+    SALE_COMPLETION: 'C230',
+    POINT_ENQUIRY: 'C241',
+    INSTANT_REWARD: 'C242',
+    POINT_REDEMPTION: 'C243',
+    VALUE_REDEMPTION: 'C244',
+    GIFT_REDEMPTION: 'C245',
+    HOT_DEAL: 'C246',
+    OTSR_REDEMPTION: 'C275',
+    OTSR_ENQUIRY: 'C276',
     WALLET_SALE: 'C290',
     WALLET_REFUND: 'C292',
+    LOYALTY_VOID: 'C342',
     SETTLEMENT: 'C500',
+    READ_MYKAD: 'C610',
+    PIN_ENTRY: 'C700',
+    GENTING_CARD: 'C800',
     ECHO_TEST: 'C902',
+    GET_TID_MID: 'C904',
+    SCAN_QR: 'C906',
+    READ_CARD: 'C910',
+    GET_TOKEN: 'C911',
+    MIFARE: 'C912',
+    SET_TIME: 'C921',
   }),
 
   /** Response codes from terminal */
   RESPONSES: Object.freeze({
     /** Standard transaction responses */
     PREAUTH: 'R100',
+    PREAUTH_PARKING: 'R101',
     SALE: 'R200',
     VOID: 'R201',
     REFUND: 'R203',
+    CASH_BACK: 'R205',
     TRANSACTION_STATUS: 'R208',
+    ADJUST: 'R220',
+    SALE_COMPLETION: 'R230',
+    POINT_ENQUIRY: 'R241',
+    INSTANT_REWARD: 'R242',
+    POINT_REDEMPTION: 'R243',
+    VALUE_REDEMPTION: 'R244',
+    GIFT_REDEMPTION: 'R245',
+    HOT_DEAL: 'R246',
+    OTSR_REDEMPTION: 'R275',
+    OTSR_ENQUIRY: 'R276',
+    WALLET_SALE: 'R290',
+    WALLET_REFUND: 'R292',
+    LOYALTY_VOID: 'R342',
     SETTLEMENT: 'R500',
+    READ_MYKAD: 'R610',
+    PIN_ENTRY: 'R700',
+    GENTING_CARD: 'R800',
     ECHO_TEST: 'R902',
+    GET_TID_MID: 'R904',
+    SCAN_QR: 'R906',
+    READ_CARD: 'R910',
+    GET_TOKEN: 'R911',
+    MIFARE: 'R912',
+    SET_TIME: 'R921',
 
-    // --- Wallet Transaction Responses (Prefix indicates the processing host) ---
-    /** E-Wallet responses */
-    EWALLET_SALE: 'G200',
-    EWALLET_REFUND: 'G203', 
-    EWALLET_WALLET_SALE: 'G290',
-    EWALLET_WALLET_REFUND: 'G292'
   }),
 
   /** Status code descriptions */
@@ -190,7 +230,11 @@ export const ECR_CONSTANTS = Object.freeze({
 
   /** QR code provider ID */
   QR_CODE_IDS: Object.freeze({
-    EWALLET: '03'
+    ALIPAY: '01',
+    MBB_QRPAY: '02',
+    EWALLET: '03',
+    GHL_MAH: '04',
+    HLB_GTX: '05'
   }),
 
   /** Receipt printing options */
@@ -215,7 +259,29 @@ export const TRANSACTION_TYPES = Object.freeze({
   REFUND: 'refund',
   SETTLEMENT: 'settlement',
   PREAUTH: 'preauth',
-  ECHO_TEST: 'echo_test',
+  PREAUTH_PARKING: 'preauth_parking',
+  CASH_BACK: 'cash_back',
+  ADJUST: 'adjust',
+  SALE_COMPLETION: 'sale_completion',
+  POINT_ENQUIRY: 'point_enquiry',
+  INSTANT_REWARD: 'instant_reward',
+  POINT_REDEMPTION: 'point_redemption',
+  VALUE_REDEMPTION: 'value_redemption',
+  GIFT_REDEMPTION: 'gift_redemption',
+  HOT_DEAL: 'hot_deal',
+  OTSR_REDEMPTION: 'otsr_redemption',
+  OTSR_ENQUIRY: 'otsr_enquiry',
   WALLET_SALE: 'wallet_sale',
-  WALLET_REFUND: 'wallet_refund'
+  WALLET_REFUND: 'wallet_refund',
+  READ_MYKAD: 'read_mykad',
+  PIN_ENTRY: 'pin_entry',
+  GENTING_CARD: 'genting_card',
+  ECHO_TEST: 'echo_test',
+  GET_TID_MID: 'get_tid_mid',
+  SCAN_QR: 'scan_qr',
+  READ_CARD: 'read_card',
+  GET_TOKEN: 'get_token',
+  MIFARE: 'mifare',
+  SET_TIME: 'set_time',
+  LOYALTY_VOID: 'loyalty_void'
 });

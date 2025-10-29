@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Alert } from 'react-native';
 
 /**
  * Custom hook for centralized alert management
@@ -38,18 +39,36 @@ const useAlert = () => {
     }));
   }, []);
 
-  // Convenience methods for different alert types
+  // Convenience methods for different alert types using React Native Alert
   const showSuccess = useCallback((title, message, buttons = null) => {
-    showAlert(title, message, { type: 'success', buttons });
-  }, [showAlert]);
+    if (buttons) {
+      Alert.alert(title, message, buttons);
+    } else {
+      Alert.alert(title, message, [
+        { text: 'OK', style: 'default' }
+      ]);
+    }
+  }, []);
 
   const showError = useCallback((title, message, buttons = null) => {
-    showAlert(title, message, { type: 'error', buttons });
-  }, [showAlert]);
+    if (buttons) {
+      Alert.alert(title, message, buttons);
+    } else {
+      Alert.alert(title, message, [
+        { text: 'OK', style: 'default' }
+      ]);
+    }
+  }, []);
 
   const showWarning = useCallback((title, message, buttons = null) => {
-    showAlert(title, message, { type: 'warning', buttons });
-  }, [showAlert]);
+    if (buttons) {
+      Alert.alert(title, message, buttons);
+    } else {
+      Alert.alert(title, message, [
+        { text: 'OK', style: 'default' }
+      ]);
+    }
+  }, []);
 
   const showConfirm = useCallback((title, message, onConfirm, onCancel = null) => {
     const buttons = [
@@ -64,8 +83,8 @@ const useAlert = () => {
         onPress: onConfirm,
       },
     ];
-    showAlert(title, message, { type: 'confirm', buttons });
-  }, [showAlert]);
+    Alert.alert(title, message, buttons);
+  }, []);
 
   const showDelete = useCallback((title, message, onConfirm, onCancel = null) => {
     const buttons = [
@@ -80,8 +99,8 @@ const useAlert = () => {
         onPress: onConfirm,
       },
     ];
-    showAlert(title, message, { type: 'warning', buttons });
-  }, [showAlert]);
+    Alert.alert(title, message, buttons);
+  }, []);
 
   const showConnectionStatus = useCallback((isConnected, deviceName = null) => {
     if (isConnected) {

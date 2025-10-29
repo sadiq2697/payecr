@@ -13,6 +13,9 @@ export class ResponseParser {
         };
       }
 
+      // Convert G290 to R290 for proper parsing (terminal sometimes returns G290 for E-wallet)
+      rawResponse = rawResponse.replace(/G290/g, 'R290').replace(/G292/g, 'R292');
+      
       const stxIndex = rawResponse.indexOf(ECR_CONSTANTS.CONTROL_CHARS.STX);
       const etxIndex = rawResponse.indexOf(ECR_CONSTANTS.CONTROL_CHARS.ETX);
       if (stxIndex === -1 || etxIndex === -1) {
@@ -50,20 +53,34 @@ export class ResponseParser {
           READ_CARD: this.parseReadCardResponse,
           SCAN_QR: this.parseScanQRResponse,
           TRANSACTION_STATUS: this.parseTransactionStatusResponse,
-          ECHO_TEST: this.parseEchoTestResponse
+          ECHO_TEST: this.parseEchoTestResponse,
+          // Missing response parsers from C# implementation
+          PREAUTH_PARKING: this.parsePreAuthParkingResponse,
+          CASH_BACK: this.parseCashBackResponse,
+          SALE_COMPLETION: this.parseSaleCompletionResponse,
+          POINT_ENQUIRY: this.parsePointEnquiryResponse,
+          INSTANT_REWARD: this.parseInstantRewardResponse,
+          POINT_REDEMPTION: this.parsePointRedemptionResponse,
+          VALUE_REDEMPTION: this.parseValueRedemptionResponse,
+          GIFT_REDEMPTION: this.parseGiftRedemptionResponse,
+          HOT_DEAL: this.parseHotDealResponse,
+          OTSR_REDEMPTION: this.parseOTSRRedemptionResponse,
+          OTSR_ENQUIRY: this.parseOTSREnquiryResponse,
+          READ_MYKAD: this.parseReadMyKadResponse,
+          PIN_ENTRY: this.parsePINEntryResponse,
+          GENTING_CARD: this.parseGentingCardResponse,
+          GET_TID_MID: this.parseGetTIDMIDResponse,
+          GET_TOKEN: this.parseGetTokenResponse,
+          MIFARE: this.parseMiFareResponse,
+          LOYALTY_VOID: this.parseLoyaltyVoidResponse,
+          SET_TIME: this.parseSetTimeResponse
         };
         if (map[transactionType]) {
           parsedResponse = map[transactionType].call(this, messageContent, responseCode) || {};
         }
       }
 
-      parsedResponse.success = true;
       parsedResponse.hostType = this.getHostType(responseCode);
-      parsedResponse.isApproved = this.isStatusCodeApproved(
-        parsedResponse.statusCode || '',
-        parsedResponse.hostType,
-        transactionType
-      );
       parsedResponse.statusDescription = this.getStatusCodeDescription(
         parsedResponse.statusCode || '',
         parsedResponse.hostType,
@@ -72,6 +89,31 @@ export class ResponseParser {
       parsedResponse.statusCategory = this.getStatusCodeCategory(parsedResponse.statusCode || '');
       parsedResponse.responseCodeDescription = this.getResponseCodeDescription(responseCode);
       parsedResponse.rawData = rawResponse;
+      
+      // Check if this is a terminal error vs normal decline
+      const isTerminalError = this.isTerminalError(parsedResponse.statusCode || '');
+      
+      if (isTerminalError) {
+        // Terminal errors should be treated as failures, not successful declines
+        return {
+          success: false,
+          error: `Terminal error: ${parsedResponse.statusDescription}`,
+          statusCode: parsedResponse.statusCode,
+          statusDescription: parsedResponse.statusDescription,
+          statusCategory: parsedResponse.statusCategory,
+          isTerminalError: true,
+          rawData: rawResponse,
+          ...parsedResponse
+        };
+      }
+      
+      // Normal transaction - check if approved
+      parsedResponse.success = true;
+      parsedResponse.isApproved = this.isStatusCodeApproved(
+        parsedResponse.statusCode || '',
+        parsedResponse.hostType,
+        transactionType
+      );
 
       return parsedResponse;
     } catch (error) {
@@ -134,7 +176,7 @@ export class ResponseParser {
 
   getHostType(code) {
     const prefix = code.charAt(0);
-    const hostTypes = { R: 'Standard/Other', G: 'E-Wallet' };
+    const hostTypes = { R: 'Standard/Other' };
     return hostTypes[prefix] || 'Unknown';
   }
 
@@ -149,7 +191,7 @@ export class ResponseParser {
     if (!statusCode) return false;
     
     const code = statusCode.trim().toUpperCase();
-    const walletCodes = ['G290', 'G292', 'Q290', 'Q292', 'X290', 'R290', 'R292'];
+    const walletCodes = ['R290', 'R292'];
     
     // ISO standard approved codes
     const isoApprovedCodes = [
@@ -161,9 +203,7 @@ export class ResponseParser {
     ];
     
     // Special host-specific approved codes
-    const hostSpecificCodes = {
-      'E-Wallet': ['90']
-    };
+    const hostSpecificCodes = {};
     
     // Check wallet transactions
     if (walletCodes.includes(transactionType)) {
@@ -175,10 +215,6 @@ export class ResponseParser {
       return [...isoApprovedCodes, ...hostSpecificCodes[hostType] || []].includes(code);
     }
     
-    // E-Wallet special rule for non-wallet transactions
-    if (hostType === 'E-Wallet' && !transactionType?.includes('WALLET')) {
-      return code === '90';
-    }
     
     // Check ISO standard codes
     if (isoApprovedCodes.includes(code)) return true;
@@ -190,6 +226,47 @@ export class ResponseParser {
     if (transactionType === 'ECHO_TEST' && code) return true;
     
     return false;
+  }
+
+  /**
+   * Determine if a status code represents a terminal error that should fail the transaction
+   * @param {string} statusCode - The status code to check
+   * @returns {boolean} True if this is a terminal error that should cause transaction failure
+   */
+  isTerminalError(statusCode) {
+    if (!statusCode) return false;
+    
+    const code = statusCode.trim().toUpperCase();
+    
+    // Terminal/System error codes that should cause transaction failure
+    const terminalErrorCodes = [
+      // Protocol error codes
+      'TA', // Transaction Aborted
+      'TD', // Transaction Disabled  
+      'HE', // Host Number Error
+      'AO', // Amount Out of Range
+      'AE', // Amount Mismatch
+      'SE', // System Error
+      'EC', // ECR Communication Error
+      'IC', // Invalid Configuration
+      'PE', // Protocol Error
+      'FE', // Format Error
+      'RE', // Response Error
+      'WC', // Wrong Command
+      'ZE', // Zone Error
+      'BU', // Backup/Restore Error
+      'CE', // Configuration Error
+      'LE', // License Error
+      
+      // ISO codes that represent system/terminal errors (not card declines)
+      '96', // System Malfunction
+      '91', // Issuer or Switch Inoperative
+      '94', // Duplicate Transmission
+      '95', // Reconcile Error
+      '89', // MAC Error
+    ];
+    
+    return terminalErrorCodes.includes(code);
   }
 
   getCardTypeDescription(cardType) {
@@ -296,13 +373,6 @@ export class ResponseParser {
       'R906': 'Scan QR Response',
       'R910': 'Read Card Response',
       
-      // E-Wallet responses
-      'G200': 'E-Wallet Sale Response',
-      'G203': 'E-Wallet Refund Response',
-      'G290': 'E-Wallet Wallet Sale Response',
-      'G292': 'E-Wallet Wallet Refund Response',
-      
-      // Other provider responses removed
     };
     
     return descriptions[code] || `${this.getHostType(code)} Response`;
@@ -478,6 +548,366 @@ export class ResponseParser {
     };
 
     return report;
+  }
+
+  // ===== Missing Response Parsers from C# Implementation =====
+
+  /**
+   * Parse Pre-Authorization Parking response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parsePreAuthParkingResponse(message, responseCode) {
+    return this.parseCardTransactionResponse(message, responseCode, 'PREAUTH_PARKING');
+  }
+
+  /**
+   * Parse Cash Back response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseCashBackResponse(message, responseCode) {
+    return this.parseCardTransactionResponse(message, responseCode, 'CASH_BACK');
+  }
+
+  /**
+   * Parse Sale Completion response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseSaleCompletionResponse(message, responseCode) {
+    return {
+      transactionType: 'SALE_COMPLETION',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      approvalCode: message.substring(6, 12).trim(),
+      transactionTrace: message.substring(12, 18).trim(),
+      batchNumber: message.substring(18, 24).trim(),
+      hostNo: message.substring(24, 26).trim(),
+      terminalId: message.substring(26, 34).trim(),
+      merchantId: message.substring(34, 49).trim()
+    };
+  }
+
+  /**
+   * Parse Point Enquiry response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parsePointEnquiryResponse(message, responseCode) {
+    const r = {
+      transactionType: 'POINT_ENQUIRY',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      cardNumber: message.substring(6, 25).trim(),
+      expiryDate: message.substring(25, 29).trim(),
+      availablePoints: message.substring(29, 41).trim(),
+      cardholderName: message.substring(41, 67).trim()
+    };
+    
+    if (message.length > 67) {
+      r.membershipLevel = message.substring(67, 69).trim();
+      r.expiryDate = message.substring(69, 77).trim();
+    }
+    
+    return r;
+  }
+
+  /**
+   * Parse Instant Reward response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseInstantRewardResponse(message, responseCode) {
+    return {
+      transactionType: 'INSTANT_REWARD',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      rewardAmount: message.substring(6, 18).trim(),
+      transactionTrace: message.substring(18, 24).trim(),
+      approvalCode: message.substring(24, 30).trim(),
+      terminalId: message.substring(30, 38).trim(),
+      merchantId: message.substring(38, 53).trim()
+    };
+  }
+
+  /**
+   * Parse Point Redemption response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parsePointRedemptionResponse(message, responseCode) {
+    return {
+      transactionType: 'POINT_REDEMPTION',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      pointsRedeemed: message.substring(6, 18).trim(),
+      cashValue: message.substring(18, 30).trim(),
+      remainingPoints: message.substring(30, 42).trim(),
+      transactionTrace: message.substring(42, 48).trim(),
+      approvalCode: message.substring(48, 54).trim(),
+      terminalId: message.substring(54, 62).trim(),
+      merchantId: message.substring(62, 77).trim()
+    };
+  }
+
+  /**
+   * Parse Value Redemption response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseValueRedemptionResponse(message, responseCode) {
+    return {
+      transactionType: 'VALUE_REDEMPTION',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      redeemedAmount: message.substring(6, 18).trim(),
+      remainingValue: message.substring(18, 30).trim(),
+      transactionTrace: message.substring(30, 36).trim(),
+      approvalCode: message.substring(36, 42).trim(),
+      terminalId: message.substring(42, 50).trim(),
+      merchantId: message.substring(50, 65).trim()
+    };
+  }
+
+  /**
+   * Parse Gift Redemption response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseGiftRedemptionResponse(message, responseCode) {
+    return {
+      transactionType: 'GIFT_REDEMPTION',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      giftCode: message.substring(6, 18).trim(),
+      quantity: message.substring(18, 30).trim(),
+      giftDescription: message.substring(30, 70).trim(),
+      transactionTrace: message.substring(70, 76).trim(),
+      approvalCode: message.substring(76, 82).trim(),
+      terminalId: message.substring(82, 90).trim(),
+      merchantId: message.substring(90, 105).trim()
+    };
+  }
+
+  /**
+   * Parse Hot Deal response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseHotDealResponse(message, responseCode) {
+    return {
+      transactionType: 'HOT_DEAL',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      dealCode: message.substring(6, 18).trim(),
+      quantity: message.substring(18, 30).trim(),
+      dealDescription: message.substring(30, 70).trim(),
+      discountAmount: message.substring(70, 82).trim(),
+      transactionTrace: message.substring(82, 88).trim(),
+      approvalCode: message.substring(88, 94).trim(),
+      terminalId: message.substring(94, 102).trim(),
+      merchantId: message.substring(102, 117).trim()
+    };
+  }
+
+  /**
+   * Parse OTSR Redemption response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseOTSRRedemptionResponse(message, responseCode) {
+    return {
+      transactionType: 'OTSR_REDEMPTION',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      redeemedAmount: message.substring(6, 18).trim(),
+      remainingBalance: message.substring(18, 30).trim(),
+      transactionTrace: message.substring(30, 36).trim(),
+      approvalCode: message.substring(36, 42).trim(),
+      terminalId: message.substring(42, 50).trim(),
+      merchantId: message.substring(50, 65).trim()
+    };
+  }
+
+  /**
+   * Parse OTSR Enquiry response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseOTSREnquiryResponse(message, responseCode) {
+    return {
+      transactionType: 'OTSR_ENQUIRY',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      cardNumber: message.substring(6, 25).trim(),
+      availableBalance: message.substring(25, 37).trim(),
+      cardholderName: message.substring(37, 63).trim(),
+      expiryDate: message.substring(63, 67).trim()
+    };
+  }
+
+  /**
+   * Parse Read MyKad response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseReadMyKadResponse(message, responseCode) {
+    return {
+      transactionType: 'READ_MYKAD',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      icNumber: message.substring(6, 18).trim(),
+      name: message.substring(18, 68).trim(),
+      address: message.substring(68, 168).trim(),
+      dateOfBirth: message.substring(168, 176).trim(),
+      gender: message.substring(176, 177).trim(),
+      religion: message.substring(177, 178).trim(),
+      race: message.substring(178, 179).trim(),
+      citizenship: message.substring(179, 180).trim()
+    };
+  }
+
+  /**
+   * Parse PIN Entry response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parsePINEntryResponse(message, responseCode) {
+    return {
+      transactionType: 'PIN_ENTRY',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      encryptedPIN: message.substring(6, 22).trim(),
+      sessionKey: message.substring(22, 54).trim(),
+      terminalId: message.substring(54, 62).trim(),
+      merchantId: message.substring(62, 77).trim()
+    };
+  }
+
+  /**
+   * Parse Genting Card response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseGentingCardResponse(message, responseCode) {
+    return {
+      transactionType: 'GENTING_CARD',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      cardNumber: message.substring(6, 25).trim(),
+      cardholderName: message.substring(25, 51).trim(),
+      membershipLevel: message.substring(51, 53).trim(),
+      pointsBalance: message.substring(53, 65).trim(),
+      expiryDate: message.substring(65, 69).trim()
+    };
+  }
+
+  /**
+   * Parse Get TID/MID response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseGetTIDMIDResponse(message, responseCode) {
+    return {
+      transactionType: 'GET_TID_MID',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      terminalId: message.substring(6, 14).trim(),
+      merchantId: message.substring(14, 29).trim(),
+      merchantName: message.substring(29, 69).trim(),
+      terminalType: message.substring(69, 71).trim(),
+      softwareVersion: message.substring(71, 81).trim()
+    };
+  }
+
+  /**
+   * Parse Get Token response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseGetTokenResponse(message, responseCode) {
+    return {
+      transactionType: 'GET_TOKEN',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      token: message.substring(6, 70).trim(),
+      expiryTime: message.substring(70, 84).trim(),
+      terminalId: message.substring(84, 92).trim(),
+      merchantId: message.substring(92, 107).trim()
+    };
+  }
+
+  /**
+   * Parse MiFare response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseMiFareResponse(message, responseCode) {
+    return {
+      transactionType: 'MIFARE',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      cardUID: message.substring(6, 22).trim(),
+      cardType: message.substring(22, 24).trim(),
+      dataRead: message.substring(24, 88).trim(),
+      terminalId: message.substring(88, 96).trim(),
+      merchantId: message.substring(96, 111).trim()
+    };
+  }
+
+  /**
+   * Parse Loyalty Void response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseLoyaltyVoidResponse(message, responseCode) {
+    return {
+      transactionType: 'LOYALTY_VOID',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      voidedTraceNumber: message.substring(6, 12).trim(),
+      approvalCode: message.substring(12, 18).trim(),
+      batchNumber: message.substring(18, 24).trim(),
+      hostNo: message.substring(24, 26).trim(),
+      terminalId: message.substring(26, 34).trim(),
+      merchantId: message.substring(34, 49).trim()
+    };
+  }
+
+  /**
+   * Parse Set Time response
+   * @param {string} message - Message content
+   * @param {string} responseCode - Response code
+   * @returns {object} Parsed response
+   */
+  parseSetTimeResponse(message, responseCode) {
+    return {
+      transactionType: 'SET_TIME',
+      responseCode,
+      statusCode: message.substring(4, 6).trim(),
+      currentDateTime: message.substring(6, 20).trim(),
+      terminalId: message.substring(20, 28).trim(),
+      merchantId: message.substring(28, 43).trim()
+    };
   }
 
   /**

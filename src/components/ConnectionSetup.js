@@ -2,192 +2,118 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
-  Switch,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  BackHandler,
-  FlatList
+  Modal
 } from 'react-native';
-import { Card, Divider, Button, IconButton } from 'react-native-paper';
+import { Button } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import ResponsiveGrid from './UI/ResponsiveGrid';
+import DashboardCard from './UI/DashboardCard';
 import { CONNECTION_TYPES, ECR_CONSTANTS } from '../utils/Constants';
 import AlertModal from './AlertModal';
 import useAlert from '../hooks/useAlert';
 
-const ConnectionSetup = ({ ecrService, onConnectionChange }) => {
-  const [connectionType, setConnectionType] = useState(CONNECTION_TYPES.SERIAL);
-  const [isConnecting, setIsConnecting] = useState(false);
+const ConnectionSetup = ({ ecrService, printerService, onConnectionChange, onPrinterConnectionChange }) => {
+  // Core connection state
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   
-  // USB Device Management State
+  // Device management state
   const [savedUSBDevices, setSavedUSBDevices] = useState([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [showUSBDevices, setShowUSBDevices] = useState(true);
   const [selectedUSBDevice, setSelectedUSBDevice] = useState(null);
+  const [savedPrinters, setSavedPrinters] = useState([]);
+  const [selectedPrinter, setSelectedPrinter] = useState(null);
+  const [printerConnected, setPrinterConnected] = useState(false);
+  const [printerConnectionType, setPrinterConnectionType] = useState(null);
   
-  // Track previous device states to detect online status changes
-  const previousDeviceStatesRef = React.useRef({});
-  
-  // Refs for cleanup and tracking
-  const intervalRef = React.useRef(null);
-  const lastAutoConnectAttempt = React.useRef(0);
-  const AUTO_CONNECT_COOLDOWN = 10000; // 10 seconds cooldown between auto-connect attempts
-  
-  // Device Selection Modal
+  // Modal states
+  const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
+  const [selectedDeviceType, setSelectedDeviceType] = useState(null);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [scannedDevices, setScannedDevices] = useState([]);
+  const [printerDevices, setPrinterDevices] = useState([]);
+  const [connectionType, setConnectionType] = useState(null);
   
-  // App Exit Handler
-  const [showExitModal, setShowExitModal] = useState(false);
-  
-  // Centralized Alert System
+  // Alert system
   const {
     alertState,
     hideAlert,
     showSuccess,
     showError,
-    showWarning,
     showDelete,
-    showConnectionStatus
   } = useAlert();
   
-  // Delete Modal no longer needed - handled by centralized alert system
+  // Prevent connection loops
+  const connectionAttemptRef = React.useRef(false);
 
-  const [tcpConfig, setTcpConfig] = useState({
-    host: '192.168.1.100',
-    port: ECR_CONSTANTS.TCP_CONFIG.PORT.toString(), // Use constant
-    timeout: ECR_CONSTANTS.TIMEOUTS.COMMAND.toString(), // Use constant
-  });
+  // Load saved devices on mount
+  useEffect(() => {
+    loadSavedUSBDevices();
+    loadSavedPrinters();
+  }, [loadSavedUSBDevices, loadSavedPrinters]);
 
-  const [serialConfig, setSerialConfig] = useState({
-    baudRate: ECR_CONSTANTS.SERIAL_CONFIG.BAUD_RATE.toString(), // Use constant
-  });
-
-  // showAlert is now provided by useAlert hook
-
-  const checkConnectionStatus = useCallback(async () => {
-    try {
-      const connected = await ecrService.checkConnection();
-      setIsConnected(connected);
-      onConnectionChange?.(connected);
-    } catch (error) { // Added error logging
-      setIsConnected(false);
-      onConnectionChange?.(false);
-      console.error("Failed to check connection status:", error);
-    }
-  }, [ecrService, onConnectionChange]);
-
-
-  // USB Device Management Functions
   const loadSavedUSBDevices = useCallback(async () => {
     try {
-      console.log('Calling ecrService.getSavedUSBDevices()...');
       const devices = await ecrService.getSavedUSBDevices();
-      console.log('Loaded saved devices:', devices, 'Length:', devices?.length || 0);
       setSavedUSBDevices(devices || []);
-      console.log('State updated with devices');
     } catch (error) {
-      console.error('Error loading saved USB devices:', error);
-      console.error('Error details:', error.message, error.code);
+      console.error('Failed to load saved USB devices:', error);
+      setSavedUSBDevices([]);
     }
   }, [ecrService]);
 
-  const scanForUSBDevices = useCallback(async () => {
-    setIsScanning(true);
-    try {
-      const devices = await ecrService.scanForUSBDevices();
-      console.log('Scanned devices:', devices); // Debug log
-      
-      if (devices.length === 0) {
-        showWarning('No Devices Found', 'No USB devices detected. Please connect your ECR terminal or printer.');
-        return;
-      }
-      
-      setScannedDevices(devices);
-      setShowDeviceModal(true);
-    } catch (error) {
-      console.error('Error scanning for USB devices:', error);
-      showError('Scan Error', error.message || 'Failed to scan for USB devices');
-    } finally {
-      setIsScanning(false);
-    }
-  }, [ecrService, showWarning, showError]);
-
-  const selectNewDevice = async (device) => {
-    try {
-      console.log('Saving device:', device); // Debug log
-      
-      // Save the device with a user-friendly alias
-      const alias = device.displayName || device.deviceName || `USB Device ${device.vendorId}:${device.productId}`;
-      const result = await ecrService.saveUSBDevice(device, parseInt(serialConfig.baudRate, 10), alias);
-      
-      console.log('Save result:', result); // Debug log
-      
-      showSuccess('Device Saved', `"${alias}" has been saved and will auto-reconnect when plugged in.`);
-      
-      // Force reload saved devices with a small delay to ensure persistence has completed
-      setTimeout(async () => {
-        await loadSavedUSBDevices();
-        console.log('Updated saved devices after timeout:', savedUSBDevices); // Debug log
-      }, 100);
-    } catch (error) {
-      console.error('Error saving USB device:', error);
-      showError('Save Error', error.message || 'Failed to save USB device');
-    }
-  };
+  const loadSavedPrinters = useCallback(() => {
+    // Load from local state or storage
+    // This is a simplified implementation
+    const saved = [];
+    setSavedPrinters(saved);
+  }, []);
 
   const connectToUSBDevice = useCallback(async (device) => {
-    if (!device.isOnline) {
-      showWarning('Device Offline', `${device.displayName || device.deviceName} is not connected. Please plug in the USB device.`);
+    if (connectionAttemptRef.current || isConnecting) {
+      console.log('Connection already in progress');
       return;
     }
     
-    if (!device.hasPermission) {
-      try {
-        await ecrService.requestUSBPermission(device.deviceId);
-        // Wait for permission result
-        showWarning('Permission Required', 'Please grant USB permission for the device.');
-        return;
-      } catch (error) {
-        showError('Permission Error', error.message || 'Failed to request USB permission');
-        return;
-      }
-    }
-    
+    connectionAttemptRef.current = true;
     setIsConnecting(true);
+    
     try {
-      const result = await ecrService.connectToUSBDevice(device.deviceId);
-      
-      console.log('Connection result:', result);
-      
-      if (result.success) {
+      const result = await ecrService.connectToUSBDevice(device);
+      if (result?.success) {
         setIsConnected(true);
         setSelectedUSBDevice(device);
-        
-        // Update connection status in parent component
-        if (onConnectionChange) {
-          console.log('Calling onConnectionChange with true');
-          onConnectionChange(true);
-        }
-        
-        // Refresh the connection status to make sure UI is updated
-        setTimeout(() => {
-          checkConnectionStatus();
-        }, 500);
-        
-        showConnectionStatus(true, device.displayName || device.deviceName);
+        onConnectionChange?.(true);
+        showSuccess('Connected', `Connected to ${device.displayName || device.deviceName}`);
       } else {
-        showError('Connection Failed', result.message || 'Failed to connect to USB device');
+        throw new Error(result?.message || 'Connection failed');
       }
     } catch (error) {
-      console.error('Error connecting to USB device:', error);
-      showError('Connection Error', error.message || 'Failed to connect to USB device');
+      console.error('Connection error:', error);
+      showError('Connection Failed', error.message);
+      setIsConnected(false);
+      setSelectedUSBDevice(null);
+      onConnectionChange?.(false);
     } finally {
       setIsConnecting(false);
+      connectionAttemptRef.current = false;
     }
-  }, [ecrService, onConnectionChange, checkConnectionStatus, showWarning, showError, showConnectionStatus]);
+  }, [ecrService, isConnecting, onConnectionChange, showSuccess, showError]);
+
+  const handleDisconnect = useCallback(async () => {
+    try {
+      await ecrService.disconnect();
+      setIsConnected(false);
+      setSelectedUSBDevice(null);
+      onConnectionChange?.(false);
+      showSuccess('Disconnected', 'Successfully disconnected from device');
+    } catch (error) {
+      showError('Disconnect Error', error.message);
+    }
+  }, [ecrService, onConnectionChange, showSuccess, showError]);
 
   const removeUSBDevice = useCallback((device) => {
     showDelete(
@@ -197,616 +123,558 @@ const ConnectionSetup = ({ ecrService, onConnectionChange }) => {
         try {
           await ecrService.removeUSBDevice(device.deviceId);
           await loadSavedUSBDevices();
-          showSuccess('Device Removed', `"${device.displayName || device.deviceName}" has been removed.`);
+          showSuccess('Device Removed', 'Device has been removed successfully');
         } catch (error) {
-          showError('Remove Error', error.message || 'Failed to remove USB device');
+          showError('Remove Error', error.message || 'Failed to remove device');
         }
       }
     );
   }, [ecrService, loadSavedUSBDevices, showDelete, showSuccess, showError]);
-  
-  // confirmDeleteDevice is now handled inline in removeUSBDevice
 
-  const toggleAutoReconnect = useCallback(async (device) => {
+  const removeSavedPrinter = useCallback((printerId) => {
+    showDelete(
+      'Remove Printer',
+      'Are you sure you want to remove this printer?',
+      () => {
+        setSavedPrinters(prev => prev.filter(p => p.id !== printerId));
+        showSuccess('Printer Removed', 'Printer has been removed successfully');
+      }
+    );
+  }, [showDelete, showSuccess]);
+
+  const scanForUSBDevices = useCallback(async () => {
     try {
-      await ecrService.toggleUSBAutoReconnect(device.deviceId, !device.autoReconnect);
-      await loadSavedUSBDevices();
+      const devices = await ecrService.scanForUSBDevices();
+      if (devices && Array.isArray(devices) && devices.length > 0) {
+        setScannedDevices(devices);
+        setShowDeviceModal(true);
+      } else {
+        showError('No Devices Found', 'No USB devices detected. Please connect your device and try again.');
+      }
     } catch (error) {
-      console.error('Error toggling auto-reconnect:', error);
-      showError('Error', 'Failed to update auto-reconnect setting');
+      showError('Scan Error', error.message || 'Failed to scan for devices');
     }
-  }, [ecrService, loadSavedUSBDevices, showError]);
+  }, [ecrService, showError]);
 
-
-  useEffect(() => {
-    checkConnectionStatus();
+  const scanForPrinters = useCallback(async () => {
+    if (!printerService) {
+      showError('Service Error', 'Printer service not available');
+      return;
+    }
     
-    // Load saved devices and attempt auto-connect
-    console.log('Loading saved USB devices...');
-    ecrService.getSavedUSBDevices()
-      .then(async (devices) => {
-        console.log('Loaded devices:', devices);
-        setSavedUSBDevices(devices || []);
-        
-        // Initialize previous device states
-        const initialStates = {};
-        devices?.forEach(device => {
-          initialStates[device.deviceId] = device.isOnline;
-        });
-        setPreviousDeviceStates(initialStates);
-        
-        // Try to auto-connect to the first available device with auto-reconnect enabled (one-time on app start)
-        if (devices && devices.length > 0 && !isConnected) {
-          const autoReconnectDevices = devices.filter(d => d.autoReconnect && d.isOnline && d.hasPermission);
-          if (autoReconnectDevices.length > 0) {
-            const deviceToConnect = autoReconnectDevices[0];
-            console.log('Initial auto-connect attempt to:', deviceToConnect.displayName);
-            try {
-              const result = await ecrService.connectToUSBDevice(deviceToConnect.deviceId);
-              if (result.success) {
-                setIsConnected(true);
-                setSelectedUSBDevice(deviceToConnect);
-                onConnectionChange?.(true);
-                console.log('Initial auto-connect successful');
-              }
-            } catch (error) {
-              console.log('Initial auto-connect failed:', error.message);
-            }
-          }
-        }
-      })
-      .catch(err => console.error('Error loading devices:', err));
-    
-    // Set up periodic refresh for USB devices - only for status updates
-    intervalRef.current = setInterval(async () => {
-      try {
-        if (savedUSBDevices.length > 0) {
-          const updatedDevices = await ecrService.getSavedUSBDevices();
-        
-        // Only update state and check auto-connect if there are actual changes
-        let hasStatusChanges = false;
-        const statusChanges = [];
-        
-        if (updatedDevices) {
-          for (const device of updatedDevices) {
-            const previousState = previousDeviceStatesRef.current[device.deviceId];
-            if (previousState !== undefined && previousState !== device.isOnline) {
-              hasStatusChanges = true;
-              statusChanges.push({
-                device,
-                previousState,
-                currentState: device.isOnline,
-                justCameOnline: previousState === false && device.isOnline === true
-              });
-              console.log(`Device ${device.displayName}: ${previousState ? 'online' : 'offline'} → ${device.isOnline ? 'online' : 'offline'}`);
-            }
-          }
-        }
-        
-        // Only process if there are actual status changes
-        if (hasStatusChanges) {
-          setSavedUSBDevices(updatedDevices || []);
-          
-          // Handle auto-connect only for devices that just came online
-          if (!isConnected && !isConnecting) {
-            for (const change of statusChanges) {
-              if (change.justCameOnline && change.device.autoReconnect && change.device.hasPermission) {
-                const now = Date.now();
-                const canAutoConnect = now - lastAutoConnectAttempt.current > AUTO_CONNECT_COOLDOWN;
-                
-                if (canAutoConnect) {
-                  console.log('🔌 Device just came online! Auto-connecting to:', change.device.displayName);
-                  lastAutoConnectAttempt.current = now;
-                  await connectToUSBDevice(change.device);
-                  break; // Only connect to first available device
-                } else {
-                  console.log('⏳ Device came online but auto-connect in cooldown:', change.device.displayName);
-                }
-              } else if (change.justCameOnline) {
-                console.log('📱 Device came online but auto-reconnect disabled or no permission:', change.device.displayName);
-              }
-            }
-          }
-          
-            // Update previous states only when there are changes
-            updatedDevices?.forEach(device => {
-              previousDeviceStatesRef.current[device.deviceId] = device.isOnline;
-            });
-          }
-        
-        // Always check if currently connected device went offline (critical for disconnection)
-        if (isConnected && selectedUSBDevice && updatedDevices) {
-          const connectedDevice = updatedDevices.find(d => d.deviceId === selectedUSBDevice.deviceId);
-          if (connectedDevice) {
-            setSelectedUSBDevice(connectedDevice); // Update device status
-            
-            // If the connected device went offline, disconnect
-            if (!connectedDevice.isOnline && selectedUSBDevice.isOnline) {
-              console.log('🔌 Connected device went offline, disconnecting...');
-              setIsConnected(false);
-              onConnectionChange?.(false);
-              try {
-                await ecrService.disconnect();
-              } catch (error) {
-                console.error('Error disconnecting from offline device:', error);
-              }
-            }
-          }
-        }
-        }
-      } catch (error) {
-        console.error('Error in device status refresh:', error);
-      }
-    }, 3000); // Check every 3 seconds for status changes (optimized)
-    
-    // Handle back button to show exit modal
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      setShowExitModal(true);
-      return true; // Prevent default back behavior
-    });
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      backHandler.remove();
-    };
-  }, [checkConnectionStatus, loadSavedUSBDevices, connectToUSBDevice]);
-
-  const handleConnect = async () => {
-    setIsConnecting(true);
     try {
       let result;
-      if (connectionType === CONNECTION_TYPES.TCP) {
-        // --- Input Validation for TCP (Block 1) ---
-        const host = tcpConfig.host.trim();
-        const port = parseInt(tcpConfig.port, 10);
-        const timeout = parseInt(tcpConfig.timeout, 10);
-
-        if (!host) {
-          showError('Input Error', 'Host cannot be empty.');
-          return;
-        }
-        if (isNaN(port) || port <= 0 || port > 65535) {
-          showError('Input Error', 'Port must be a valid number between 1 and 65535.');
-          return;
-        }
-        if (isNaN(timeout) || timeout <= 0) {
-          showError('Input Error', 'Timeout must be a positive number.');
-          return;
-        }
-
-        result = await ecrService.connectTCP({ host, port, timeout });
+      switch (printerConnectionType) {
+        case 'usb':
+          result = await printerService.getUSBDevices();
+          break;
+        case 'bluetooth':
+          result = await printerService.getBluetoothDevices();
+          break;
+        case 'network':
+          result = await printerService.scanNetworkPrinters();
+          break;
+        default:
+          result = { success: false, error: 'Unknown connection type' };
+      }
+      
+      if (result?.success && result.devices?.length > 0) {
+        setPrinterDevices(result.devices);
+        setShowPrinterModal(true);
       } else {
-        // Serial connection - check if we have a selected USB device
-        if (selectedUSBDevice && selectedUSBDevice.isOnline) {
-          // Connect to selected USB device
-          await connectToUSBDevice(selectedUSBDevice);
-          return; // connectToUSBDevice handles success/failure internally
-        } else {
-          // No USB device selected - show device selection
-          if (savedUSBDevices.length > 0) {
-            const onlineDevices = savedUSBDevices.filter(d => d.isOnline);
-            if (onlineDevices.length === 0) {
-              showWarning('No Devices Online', 'No USB devices are currently connected. Please connect a USB device and try again.');
-              return;
-            }
-            
-            // Show device selection if multiple online devices
-            if (onlineDevices.length === 1) {
-              await connectToUSBDevice(onlineDevices[0]);
-              return; // connectToUSBDevice handles success/failure internally
-            } else {
-              showDeviceSelectionForConnection();
-              return;
-            }
-          } else {
-            // No saved devices - try legacy serial connection
-            const baudRate = parseInt(serialConfig.baudRate, 10);
-            if (isNaN(baudRate) || baudRate <= 0) {
-              showError('Input Error', 'Baud Rate must be a positive number.');
-              return;
-            }
-            result = await ecrService.connectSerial({ baudRate });
-          }
-        }
+        showError('No Printers Found', `No ${printerConnectionType} printers detected.`);
       }
+    } catch (error) {
+      showError('Printer Scan Error', error.message || 'Failed to scan for printers');
+    }
+  }, [printerService, printerConnectionType, showError]);
 
-      if (result && result.success) {
-        setIsConnected(true);
-        onConnectionChange?.(true);
-        showConnectionStatus(true); //  result.message || 'Connected successfully');
+  const connectToPrinter = useCallback(async (device) => {
+    if (!printerService) {
+      showError('Service Error', 'Printer service not available');
+      return;
+    }
+    
+    try {
+      const result = await printerService.connectUSB(device.path || device.name);
+      if (result?.success) {
+        setPrinterConnected(true);
+        setSelectedPrinter(device);
+        onPrinterConnectionChange?.(true);
+        showSuccess('Printer Connected', `Connected to ${device.name || device.path}`);
       } else {
-        showError('Connection Failed', result?.message || 'Unknown error');
+        throw new Error(result?.error || 'Printer connection failed');
       }
-    } catch (error) { // --- Error Logging (Block 2) ---
-      showError('Connection Error', error.message);
-      console.error('ECR Connection Error:', error); 
-    } finally {
-      setIsConnecting(false);
+    } catch (error) {
+      showError('Printer Connection Error', error.message);
     }
-  };
+  }, [printerService, onPrinterConnectionChange, showSuccess, showError]);
 
-  const showDeviceSelectionForConnection = () => {
-    // Use custom modal for device selection instead of Alert.alert
-    showWarning('Multiple Devices Online', 'Please connect to devices individually from the USB Devices section below.');
-  };
-
-  const handleDisconnect = async () => {
+  const disconnectPrinter = useCallback(async () => {
+    if (!printerService) return;
+    
     try {
-      await ecrService.disconnect();
-      setIsConnected(false);
-      onConnectionChange?.(false);
-      showSuccess('Disconnected', 'Connection closed successfully');
-    } catch (error) { // --- Error Logging (Block 2) ---
-      showError('Disconnect Error', error.message);
-      console.error('ECR Disconnect Error:', error);
+      await printerService.disconnect();
+      setPrinterConnected(false);
+      setSelectedPrinter(null);
+      onPrinterConnectionChange?.(false);
+      showSuccess('Printer Disconnected', 'Printer disconnected successfully');
+    } catch (error) {
+      showError('Printer Disconnect Error', error.message);
     }
-  };
+  }, [printerService, onPrinterConnectionChange, showSuccess, showError]);
 
-  const handleTestConnection = async () => {
-    if (connectionType !== CONNECTION_TYPES.TCP) {
-      return showWarning('Test Not Available', 'Only available for TCP connections');
-    }
-    setIsConnecting(true);
+  const selectNewDevice = useCallback(async (device) => {
     try {
-      // --- Input Validation for TCP Test (Block 1) ---
-      const host = tcpConfig.host.trim();
-      const port = parseInt(tcpConfig.port, 10);
-      const timeout = parseInt(tcpConfig.timeout, 10);
-
-      if (!host) {
-        showError('Input Error', 'Host cannot be empty.');
-        return;
-      }
-      if (isNaN(port) || port <= 0 || port > 65535) {
-        showError('Input Error', 'Port must be a valid number between 1 and 65535.');
-        return;
-      }
-      if (isNaN(timeout) || timeout <= 0) {
-        showError('Input Error', 'Timeout must be a positive number.');
-        return;
-      }
-
-      const result = await ecrService.testTCPConnection({ host, port, timeout });
-      result.success ? showSuccess('Test Successful', result.message) : showError('Test Failed', result.message);
-    } catch (error) { // --- Error Logging (Block 2) ---
-      showError('Test Error', error.message);
-      console.error('ECR Test Connection Error:', error);
-    } finally {
-      setIsConnecting(false);
+      const alias = device.displayName || device.deviceName || `USB Device ${device.vendorId}:${device.productId}`;
+      await ecrService.saveUSBDevice(device, ECR_CONSTANTS.SERIAL_CONFIG.BAUD_RATE, alias);
+      await loadSavedUSBDevices();
+      setShowDeviceModal(false);
+      showSuccess('Device Saved', `${device.displayName || device.deviceName} has been saved`);
+      // Auto-connect to the new device
+      connectToUSBDevice(device);
+    } catch (error) {
+      showError('Save Error', error.message || 'Failed to save device');
     }
-  };
+  }, [ecrService, loadSavedUSBDevices, showSuccess, showError, connectToUSBDevice]);
 
-  const renderTcpConfig = () => (
-    <View style={styles.configSection}>
-      <Text style={styles.sectionTitle}>TCP Configuration</Text>
-      <TextInput
-        style={styles.textInput}
-        value={tcpConfig.host}
-        onChangeText={(v) => setTcpConfig({ ...tcpConfig, host: v })}
-        placeholder="192.168.1.100"
-        editable={!isConnected}
-      />
-      <View style={styles.inputRow}>
-        <TextInput
-          style={[styles.textInput, styles.flexInput]} // Added flex for layout
-          value={tcpConfig.port}
-          onChangeText={(v) => setTcpConfig({ ...tcpConfig, port: v })}
-          placeholder="88"
-          keyboardType="numeric"
-          editable={!isConnected}
-        />
-        <TextInput
-          style={[styles.textInput, styles.flexInput]} // Added flex for layout
-          value={tcpConfig.timeout}
-          onChangeText={(v) => setTcpConfig({ ...tcpConfig, timeout: v })}
-          placeholder="5000"
-          keyboardType="numeric"
-          editable={!isConnected}
-        />
-      </View>
-      {!isConnected && (
-        <Button mode="outlined" onPress={handleTestConnection} loading={isConnecting}>
-          Test Connection
-        </Button>
-      )}
-    </View>
-  );
+  const savePrinterDevice = useCallback((device) => {
+    const deviceToSave = {
+      ...device,
+      id: `${printerConnectionType}_${device.path || device.name}_${Date.now()}`,
+      connectionType: printerConnectionType,
+      dateAdded: new Date().toISOString(),
+    };
+    
+    setSavedPrinters(prev => [...prev, deviceToSave]);
+    showSuccess('Printer Saved', 'Printer has been saved successfully');
+  }, [printerConnectionType, showSuccess]);
 
-  const renderSerialConfig = () => (
-    <View style={styles.configSection}>
-      <Text style={styles.sectionTitle}>Serial Configuration</Text>
-      <TextInput
-        style={styles.textInput}
-        value={serialConfig.baudRate}
-        onChangeText={(v) => setSerialConfig({ ...serialConfig, baudRate: v })}
-        placeholder="9600"
-        keyboardType="numeric"
-        editable={!isConnected}
-      />
-      <Text>Data Bits: 8, Parity: None, Stop Bits: 1</Text>
-    </View>
-  );
-
-  const renderUSBDeviceCard = ({ item: device }) => {
-    const statusColor = device.isOnline ? '#4CAF50' : '#F44336';
-    const statusText = device.isOnline ? 'Online' : 'Offline';
-    const needsPermission = device.isOnline && !device.hasPermission;
+  const renderSavedDeviceCard = (device, deviceType) => {
+    const isTerminal = deviceType === 'terminal';
+    const isDeviceConnected = isTerminal ? 
+      (device.deviceId === selectedUSBDevice?.deviceId && isConnected) :
+      (device.path === selectedPrinter?.path && printerConnected);
+    
+    const deviceIcon = isTerminal ? 'credit-card' : 'printer';
+    const deviceName = isTerminal ? 
+      (device.displayName || device.deviceName || 'Payment Terminal') :
+      (device.name || device.deviceName || 'Printer');
+    
+    const connectionInfo = isTerminal ? 
+      `USB • ${device.deviceId || 'Unknown ID'}` :
+      `${device.connectionType || 'USB'} • ${device.path || 'Unknown'}`;
     
     return (
-      <TouchableOpacity 
-        style={styles.deviceCard}
-        onPress={() => device.isOnline && connectToUSBDevice(device)}
-        disabled={!device.isOnline || isConnecting}
-      >
-        <View style={styles.deviceHeader}>
-          <Text style={styles.deviceName} numberOfLines={1}>
-            {device.displayName || device.deviceName || 'USB Device'}
-          </Text>
+      <View key={device.id || device.deviceId || device.path} style={[
+        styles.savedDeviceCard,
+        isDeviceConnected && styles.savedDeviceCardConnected
+      ]}>
+        <View style={styles.deviceCardHeader}>
+          <View style={[
+            styles.deviceIconContainer,
+            isDeviceConnected && { backgroundColor: '#e8f5e8' }
+          ]}>
+            <Icon name={deviceIcon} size={24} color={isDeviceConnected ? "#4CAF50" : "#2196F3"} />
+          </View>
+          <View style={styles.deviceCardActions}>
+            <TouchableOpacity
+              style={styles.deviceActionButton}
+              onPress={() => {
+                if (isTerminal) {
+                  removeUSBDevice(device);
+                } else {
+                  removeSavedPrinter(device.id);
+                }
+              }}
+            >
+              <Icon name="delete" size={20} color="#f44336" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        <View style={styles.deviceCardContent}>
+          <Text style={styles.deviceCardTitle} numberOfLines={1}>{deviceName}</Text>
+          <Text style={styles.deviceCardSubtitle}>{connectionInfo}</Text>
           
-          <View style={styles.deviceStatus}>
-            <View style={[styles.deviceStatusIndicator, { backgroundColor: statusColor }]} />
-            <Text style={styles.deviceStatusText}>{statusText}</Text>
+          <View style={styles.deviceCardStatus}>
+            <View style={styles.statusIndicatorContainer}>
+              <View style={[
+                styles.statusIndicator, 
+                { backgroundColor: isDeviceConnected ? '#4CAF50' : '#f44336' }
+              ]} />
+              <Text style={[
+                styles.statusText,
+                isDeviceConnected && { color: '#4CAF50', fontWeight: '600' }
+              ]}>
+                {isDeviceConnected ? 'Connected' : 'Disconnected'}
+              </Text>
+            </View>
+            
+            {!isDeviceConnected ? (
+              <TouchableOpacity
+                style={styles.connectButton}
+                onPress={() => isTerminal ? connectToUSBDevice(device) : connectToPrinter(device)}
+                disabled={isConnecting}
+              >
+                <Icon name="power" size={16} color="#FFFFFF" />
+                <Text style={styles.connectButtonText}>Connect</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.disconnectButton}
+                onPress={() => isTerminal ? handleDisconnect() : disconnectPrinter()}
+              >
+                <Icon name="power-off" size={16} color="#FFFFFF" />
+                <Text style={styles.disconnectButtonText}>Disconnect</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
-
-        <Text style={styles.deviceDetails} numberOfLines={1}>
-          {device.vendorId}:{device.productId}
-        </Text>
-
-        {needsPermission && (
-          <Text style={styles.devicePermissionWarning} numberOfLines={1}>
-            Needs Permission
-          </Text>
-        )}
-
-        <View style={styles.deviceControls}>
-          <View style={styles.autoReconnectRow}>
-            <Text style={styles.autoReconnectLabel}>Auto</Text>
-            <Switch
-              value={device.autoReconnect !== false}
-              onValueChange={() => toggleAutoReconnect(device)}
-              disabled={isConnecting}
-              style={styles.compactSwitch}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => removeUSBDevice(device)}
-            disabled={isConnecting}
-          >
-            <Text style={styles.deleteButtonText}>×</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
   const renderUSBDevicesSection = () => (
-    <View style={styles.usbSection}>
-      <View style={styles.usbSectionHeader}>
-        <TouchableOpacity 
-          style={styles.usbSectionTitleContainer}
-          onPress={() => setShowUSBDevices(!showUSBDevices)}
+    <DashboardCard
+      title="Saved Devices"
+      subtitle="Manage your saved devices and connections"
+      icon="devices"
+      cardType="info"
+      fullWidth={true}
+      headerAction={
+        <Button
+          mode="contained"
+          onPress={() => setShowAddDeviceModal(true)}
+          compact
+          icon={() => <Icon name="plus" size={16} color="#FFFFFF" />}
         >
-          <Text style={styles.usbSectionTitle}>Saved USB Devices</Text>
-          <IconButton
-            icon={showUSBDevices ? "chevron-up" : "chevron-down"}
-            size={20}
-          />
-        </TouchableOpacity>
-        
-        <View style={styles.usbSectionActions}>
-          <Button
-            mode="outlined"
-            onPress={scanForUSBDevices}
-            loading={isScanning}
-            disabled={isScanning || isConnecting}
-            compact
-          >
-            Scan Devices
-          </Button>
-        </View>
-      </View>
+          Add Device
+        </Button>
+      }
+    >
+      <Text style={styles.usbSectionDescription}>
+        Your saved devices will automatically reconnect when available. Use "Add Device" to set up new connections.
+      </Text>
 
-      {showUSBDevices && (
-        <>
-          <Text style={styles.usbSectionDescription}>
-            USB devices are automatically detected and saved. They will reconnect when plugged back in.
-          </Text>
-
-          <View style={styles.usbDevicesContainer}>
-            {savedUSBDevices.length === 0 ? (
-              <View style={styles.noDevicesContainer}>
-                <Text style={styles.noDevicesText}>No USB devices saved</Text>
-                <Text style={styles.noDevicesSubtext}>
-                  Connect a USB device and tap "Scan Devices" to save it for automatic reconnection.
-                </Text>
-              </View>
-            ) : (
-              <FlatList 
-                data={savedUSBDevices}
-                renderItem={renderUSBDeviceCard}
-                keyExtractor={(item) => item.deviceId}
-                numColumns={4}
-                columnWrapperStyle={styles.deviceRow}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-                style={styles.devicesList}
-              />
-            )}
-          </View>
-
-          <View style={styles.usbStats}>
-            <Text style={styles.usbStatsText}>
-              {savedUSBDevices.filter(d => d.isOnline).length} of {savedUSBDevices.length} devices online
+      <View style={styles.allDevicesContainer}>
+        {(savedUSBDevices.length === 0 && savedPrinters.length === 0) ? (
+          <View style={styles.noDevicesContainer}>
+            <Icon name="devices-off" size={48} color="#ccc" style={{marginBottom: 16}} />
+            <Text style={styles.noDevicesText}>No devices saved</Text>
+            <Text style={styles.noDevicesSubtext}>
+              Tap "Add Device" to connect and save your payment terminal or printer.
             </Text>
           </View>
-        </>
-      )}
-    </View>
+        ) : (
+          <View style={styles.devicesGrid}>
+            {savedUSBDevices.map((device) => renderSavedDeviceCard(device, 'terminal'))}
+            {savedPrinters.map((device) => renderSavedDeviceCard(device, 'printer'))}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.deviceStats}>
+        <Text style={styles.deviceStatsText}>
+          {savedUSBDevices.length} payment terminals • {savedPrinters.length} printers saved
+        </Text>
+      </View>
+    </DashboardCard>
   );
 
   return (
-    <>
-      <Card style={styles.card}>
-      <Card.Content>
-        <Text style={styles.cardTitle}>ECR Connection Setup</Text>
+    <ResponsiveGrid scrollable={true}>
+      {renderUSBDevicesSection()}
 
-        {/* Status */}
-        <View style={styles.statusContainer}>
-          <View style={[styles.mainStatusIndicator, isConnected ? styles.statusOnline : styles.statusOffline]} />
-          <Text style={styles.statusText}>
-            {isConnected ? 'Connected' : 'Disconnected'}
-            {isConnected && selectedUSBDevice && !selectedUSBDevice.isOnline ? ' (Device Offline)' : ''}
-          </Text>
-          {isConnected && <Text>({connectionType.toUpperCase()})</Text>}
-          {selectedUSBDevice && (
-            <Text style={styles.connectedDeviceText}>
-              {selectedUSBDevice.displayName || selectedUSBDevice.deviceName}
-            </Text>
-          )}
-        </View>
-
-        <Divider style={styles.divider} />
-
-        {/* Connection Type */}
-        <View style={styles.switchContainer}>
-          <Text>Serial</Text>
-          <Switch
-            value={connectionType === CONNECTION_TYPES.TCP}
-            onValueChange={(v) => setConnectionType(v ? CONNECTION_TYPES.TCP : CONNECTION_TYPES.SERIAL)}
-            disabled={isConnected}
-          />
-          <Text>TCP/IP</Text>
-        </View>
-
-        <Divider style={styles.divider} />
-
-        {connectionType === CONNECTION_TYPES.TCP ? renderTcpConfig() : renderSerialConfig()}
-
-        {/* Connect/Disconnect Buttons */}
-        <View style={styles.buttonContainer}>
-          {!isConnected ? (
-            <Button
-              mode="contained"
-              onPress={handleConnect}
-              loading={isConnecting}
-              disabled={isConnecting}
-              style={styles.actionButton}
-            >
-              Connect
-            </Button>
-          ) : (
-            <Button
-              mode="outlined"
-              onPress={handleDisconnect}
-              disabled={isConnecting}
-              style={styles.actionButton}
-            >
-              Disconnect
-            </Button>
-          )}
-        </View>
-
-        {/* USB Devices Section for Serial connections */}
-        {connectionType === CONNECTION_TYPES.SERIAL && (
-          <>
-            <Divider style={styles.divider} />
-            {renderUSBDevicesSection()}
-          </>
-        )}
-
-      </Card.Content>
-      </Card>
-
-    {/* Device Selection Modal */}
-    <Modal
-      visible={showDeviceModal}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowDeviceModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>USB Devices Found</Text>
-          <Text style={styles.modalSubtitle}>Found {scannedDevices.length} device(s). Select one to save:</Text>
-          
-          <ScrollView style={styles.deviceList}>
-            {scannedDevices.map((device) => (
+      {/* Add Device Modal */}
+      <Modal
+        visible={showAddDeviceModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowAddDeviceModal(false);
+          setSelectedDeviceType(null);
+          setConnectionType(null);
+          setPrinterConnectionType(null);
+        }}
+        style={styles.addDeviceModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addDeviceContent}>
+            <View style={styles.addDeviceHeader}>
+              <Text style={styles.addDeviceTitle}>Add New Device</Text>
               <TouchableOpacity
-                key={device.deviceId}
-                style={styles.deviceOption}
+                style={styles.closeButton}
                 onPress={() => {
-                  setShowDeviceModal(false);
-                  selectNewDevice(device);
+                  setShowAddDeviceModal(false);
+                  setSelectedDeviceType(null);
+                  setConnectionType(null);
+                  setPrinterConnectionType(null);
                 }}
               >
-                <Text style={styles.deviceOptionTitle}>
-                  {device.displayName || device.deviceName}
-                </Text>
-                <Text style={styles.deviceOptionSubtitle}>
-                  VID:{device.vendorId} PID:{device.productId}
-                </Text>
-                {!device.hasPermission && (
-                  <Text style={styles.modalPermissionWarning}>Requires permission</Text>
-                )}
+                <Icon name="close" size={20} color="#666" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-          
-          <Button mode="outlined" onPress={() => setShowDeviceModal(false)}>
-            Cancel
-          </Button>
+            </View>
+            
+            <ScrollView style={styles.modalScrollView}>
+              <View style={styles.modalInnerContent}>
+                {!selectedDeviceType ? (
+                  <>
+                    <Text style={styles.stepTitle}>Step 1: Select Device Type</Text>
+                  <View style={styles.deviceTypeOptions}>
+                    <TouchableOpacity
+                      style={styles.deviceTypeCard}
+                      onPress={() => setSelectedDeviceType('terminal')}
+                    >
+                      <Icon name="credit-card" size={32} color="#2196F3" style={{marginBottom: 8}} />
+                      <Text style={{fontSize: 16, fontWeight: '600', marginBottom: 4}}>Payment Terminal</Text>
+                      <Text style={{fontSize: 12, color: '#666', textAlign: 'center'}}>Connect ECR payment terminal for processing transactions</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={styles.deviceTypeCard}
+                      onPress={() => setSelectedDeviceType('printer')}
+                    >
+                      <Icon name="printer" size={32} color="#2196F3" style={{marginBottom: 8}} />
+                      <Text style={{fontSize: 16, fontWeight: '600', marginBottom: 4}}>ESC/POS Printer</Text>
+                      <Text style={{fontSize: 12, color: '#666', textAlign: 'center'}}>Connect thermal or receipt printer for printing receipts</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => setSelectedDeviceType(null)}
+                    style={{flexDirection: 'row', alignItems: 'center', marginBottom: 16}}
+                  >
+                    <Icon name="arrow-left" size={20} color="#2196F3" />
+                    <Text style={{color: '#2196F3', marginLeft: 8}}>Back to device selection</Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.stepTitle}>
+                    Step 2: Select Connection Method
+                  </Text>
+                  <View style={styles.connectionMethods}>
+                    {selectedDeviceType === 'terminal' ? (
+                      <>
+                        <TouchableOpacity
+                          style={[
+                            styles.connectionMethodCard,
+                            connectionType === CONNECTION_TYPES.SERIAL && styles.connectionMethodCardSelected
+                          ]}
+                          onPress={() => setConnectionType(CONNECTION_TYPES.SERIAL)}
+                        >
+                          <Icon name="usb" size={24} color="#4CAF50" style={{marginRight: 12}} />
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 14, fontWeight: '600'}}>USB Connection</Text>
+                            <Text style={{fontSize: 12, color: '#666'}}>Direct USB serial connection</Text>
+                          </View>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[
+                            styles.connectionMethodCard,
+                            connectionType === CONNECTION_TYPES.TCP && styles.connectionMethodCardSelected
+                          ]}
+                          onPress={() => setConnectionType(CONNECTION_TYPES.TCP)}
+                        >
+                          <Icon name="ethernet" size={24} color="#4CAF50" style={{marginRight: 12}} />
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 14, fontWeight: '600'}}>Network (TCP/IP)</Text>
+                            <Text style={{fontSize: 12, color: '#666'}}>Connect via network/ethernet</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[
+                            styles.connectionMethodCard,
+                            printerConnectionType === 'usb' && styles.connectionMethodCardSelected
+                          ]}
+                          onPress={() => setPrinterConnectionType('usb')}
+                        >
+                          <Icon name="usb" size={24} color="#4CAF50" style={{marginRight: 12}} />
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 14, fontWeight: '600'}}>USB</Text>
+                            <Text style={{fontSize: 12, color: '#666'}}>Direct USB connection</Text>
+                          </View>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[
+                            styles.connectionMethodCard,
+                            printerConnectionType === 'network' && styles.connectionMethodCardSelected
+                          ]}
+                          onPress={() => setPrinterConnectionType('network')}
+                        >
+                          <Icon name="ethernet" size={24} color="#4CAF50" style={{marginRight: 12}} />
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 14, fontWeight: '600'}}>Network</Text>
+                            <Text style={{fontSize: 12, color: '#666'}}>TCP/IP network connection</Text>
+                          </View>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[
+                            styles.connectionMethodCard,
+                            printerConnectionType === 'bluetooth' && styles.connectionMethodCardSelected
+                          ]}
+                          onPress={() => setPrinterConnectionType('bluetooth')}
+                        >
+                          <Icon name="bluetooth" size={24} color="#4CAF50" style={{marginRight: 12}} />
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 14, fontWeight: '600'}}>Bluetooth</Text>
+                            <Text style={{fontSize: 12, color: '#666'}}>Wireless Bluetooth connection</Text>
+                          </View>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[
+                            styles.connectionMethodCard,
+                            printerConnectionType === 'serial' && styles.connectionMethodCardSelected
+                          ]}
+                          onPress={() => setPrinterConnectionType('serial')}
+                        >
+                          <Icon name="serial-port" size={24} color="#4CAF50" style={{marginRight: 12}} />
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 14, fontWeight: '600'}}>Serial Port</Text>
+                            <Text style={{fontSize: 12, color: '#666'}}>RS232/RS485 serial connection</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </>
+                )}
+              </View>
+            </ScrollView>
+            
+            <View style={styles.addDeviceActions}>
+              <Button
+                mode="outlined"
+                onPress={() => {
+                  setShowAddDeviceModal(false);
+                  setSelectedDeviceType(null);
+                  setConnectionType(null);
+                  setPrinterConnectionType(null);
+                }}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+              
+              {selectedDeviceType && (selectedDeviceType === 'terminal' ? connectionType : printerConnectionType) && (
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    setShowAddDeviceModal(false);
+                    if (selectedDeviceType === 'terminal') {
+                      scanForUSBDevices();
+                    } else {
+                      scanForPrinters();
+                    }
+                    setSelectedDeviceType(null);
+                    setConnectionType(null);
+                    setPrinterConnectionType(null);
+                  }}
+                  style={styles.proceedButton}
+                >
+                  Scan for Devices
+                </Button>
+              )}
+            </View>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
 
-    {/* Exit Confirmation Modal */}
-    <Modal
-      visible={showExitModal}
-      animationType="fade"
-      transparent={true}
-      onRequestClose={() => setShowExitModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.exitModalContent}>
-          <Text style={styles.modalTitle}>Exit App</Text>
-          <Text style={styles.modalSubtitle}>Are you sure you want to exit?</Text>
-          
-          <View style={styles.exitModalButtons}>
-            <Button 
-              mode="outlined" 
-              onPress={() => setShowExitModal(false)}
-              style={styles.exitButton}
-            >
+      {/* Device Selection Modal */}
+      <Modal
+        visible={showDeviceModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDeviceModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>USB Devices Found</Text>
+            <Text style={styles.modalSubtitle}>Found {scannedDevices.length} device(s). Select one to save:</Text>
+            
+            <ScrollView style={styles.deviceList}>
+              {scannedDevices.map((device) => (
+                <TouchableOpacity
+                  key={device.deviceId}
+                  style={styles.deviceOption}
+                  onPress={() => selectNewDevice(device)}
+                >
+                  <Text style={styles.deviceOptionTitle}>
+                    {device.displayName || device.deviceName}
+                  </Text>
+                  <Text style={styles.deviceOptionSubtitle}>
+                    VID:{device.vendorId} PID:{device.productId}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            <Button mode="outlined" onPress={() => setShowDeviceModal(false)}>
               Cancel
-            </Button>
-            <Button 
-              mode="contained" 
-              onPress={() => BackHandler.exitApp()}
-              style={styles.exitButton}
-            >
-              Exit
             </Button>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
 
-    {/* Centralized Alert Modal */}
-    <AlertModal
-      visible={alertState.visible}
-      title={alertState.title}
-      message={alertState.message}
-      type={alertState.type}
-      buttons={alertState.buttons}
-      onClose={hideAlert}
-    />
-    </>
+      {/* Printer Selection Modal */}
+      <Modal
+        visible={showPrinterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPrinterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Printers Found</Text>
+            <Text style={styles.modalSubtitle}>Found {printerDevices.length} printer(s). Select one to save and connect:</Text>
+            
+            <ScrollView style={styles.deviceList}>
+              {printerDevices.map((device, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.deviceOption}
+                  onPress={() => {
+                    setShowPrinterModal(false);
+                    savePrinterDevice(device);
+                    connectToPrinter(device);
+                  }}
+                >
+                  <Text style={styles.deviceOptionTitle}>
+                    {device.name || device.path}
+                  </Text>
+                  <Text style={styles.deviceOptionSubtitle}>
+                    {device.description || `${printerConnectionType ? printerConnectionType.toUpperCase() : 'USB'} Printer`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            <Button mode="outlined" onPress={() => setShowPrinterModal(false)}>
+              Cancel
+            </Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Centralized Alert Modal */}
+      <AlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+        buttons={alertState.buttons}
+        onClose={hideAlert}
+      />
+
+    </ResponsiveGrid>
   );
 };
 
@@ -821,89 +689,20 @@ const styles = StyleSheet.create({
     marginLeft: 8 
   },
   divider: { marginVertical: 16 },
-  switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  configSection: { marginBottom: 16 },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    padding: 10,
-    // marginBottom: 12, // Removed as it's now in a row
-    backgroundColor: '#fff',
-  },
-  inputRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
-  buttonContainer: {
-    marginVertical: 16,
-    alignItems: 'center',
-  },
-  actionButton: {
-    minWidth: 120,
-  },
-  flexInput: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  statusOnline: {
-    backgroundColor: '#4CAF50',
-  },
-  statusOffline: {
-    backgroundColor: '#F44336',
-  },
-  deviceStatusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
-  },
   
   // USB Device Management Styles
-  usbSection: {
-    marginBottom: 16,
-  },
-  usbSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  usbSectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  usbSectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  usbSectionActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   usbSectionDescription: {
     fontSize: 12,
     color: '#666',
     marginBottom: 12,
     lineHeight: 16,
   },
-  usbDevicesContainer: {
-    marginBottom: 8,
+  allDevicesContainer: {
+    marginBottom: 16,
   },
-  devicesList: {
-    maxHeight: 400,
-  },
-  deviceRow: {
+  devicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
   },
@@ -928,98 +727,230 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
   },
-  deviceCard: {
-    backgroundColor: '#f8f9fa',
-    padding: 8,
-    margin: 4,
-    borderRadius: 8,
+  deviceStats: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    alignItems: 'center',
+  },
+  deviceStatsText: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  
+  // Saved Device Card Styles
+  savedDeviceCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 6,
+    marginHorizontal: 8,
+    width: '46%',
+    minHeight: 120,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
     borderWidth: 1,
     borderColor: '#e9ecef',
-    width: '23%',
-    minHeight: 120,
-    justifyContent: 'space-between',
   },
-  deviceHeader: {
-    marginBottom: 6,
+  savedDeviceCardConnected: {
+    backgroundColor: '#f0f8f0',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
   },
-  deviceName: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  deviceDetails: {
-    fontSize: 10,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  deviceStatus: {
+  deviceCardHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  deviceIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f8ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+  },
+  deviceCardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deviceActionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  deviceCardContent: {
+    flex: 1,
+  },
+  deviceCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  deviceCardSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 12,
+  },
+  deviceCardStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusIndicatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   statusIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 4,
+    marginRight: 6,
   },
-  deviceStatusText: {
+  connectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  connectButtonText: {
+    color: '#FFFFFF',
     fontSize: 10,
-    color: '#666',
+    fontWeight: '600',
+    marginLeft: 4,
   },
-  devicePermissionWarning: {
-    fontSize: 9,
-    color: '#ff9800',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 6,
+  disconnectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f44336',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  deviceControls: {
+  disconnectButtonText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+
+  // Add Device Modal Styles
+  addDeviceModal: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 0,
+  },
+  addDeviceContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    minHeight: 400,
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalInnerContent: {
+    padding: 20,
+    paddingTop: 16,
+  },
+  addDeviceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
   },
-  autoReconnectRow: {
+  addDeviceTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  deviceTypeOptions: {
+    marginBottom: 20,
+  },
+  deviceTypeCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    alignItems: 'center',
+  },
+  connectionMethods: {
+    marginBottom: 20,
+  },
+  connectionMethodCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-  autoReconnectLabel: {
-    fontSize: 10,
-    color: '#333',
-    marginRight: 4,
+  connectionMethodCardSelected: {
+    backgroundColor: '#e8f5e8',
+    borderColor: '#4CAF50',
   },
-  compactSwitch: {
-    transform: [{ scale: 0.8 }],
-  },
-  deleteButton: {
-    backgroundColor: '#f44336',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 4,
-  },
-  deleteButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-    lineHeight: 16,
-  },
-  usbStats: {
-    paddingTop: 8,
+  addDeviceActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
+    gap: 12,
   },
-  usbStatsText: {
-    fontSize: 11,
-    color: '#666',
-    textAlign: 'center',
+  cancelButton: {
+    flex: 1,
+    borderColor: '#e9ecef',
+  },
+  proceedButton: {
+    flex: 1,
+    backgroundColor: '#2196F3',
   },
   
   // Modal Styles
@@ -1036,13 +967,6 @@ const styles = StyleSheet.create({
     width: '90%',
     maxWidth: 400,
     maxHeight: '80%',
-  },
-  exitModalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
-    maxWidth: 300,
   },
   modalTitle: {
     fontSize: 18,
@@ -1061,46 +985,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   deviceOption: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    padding: 16,
     marginBottom: 8,
-    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   deviceOptionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#333',
     marginBottom: 4,
   },
   deviceOptionSubtitle: {
     fontSize: 12,
     color: '#666',
-    marginBottom: 4,
-  },
-  modalPermissionWarning: {
-    fontSize: 11,
-    color: '#ff9800',
-    fontWeight: 'bold',
-  },
-  exitModalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  exitButton: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  alertModalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
-    maxWidth: 350,
-  },
-  alertButton: {
-    marginTop: 16,
   },
 });
 

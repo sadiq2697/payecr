@@ -2,10 +2,10 @@ import React, { memo, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
-  PanGestureHandler,
   Animated,
   Dimensions,
 } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
@@ -25,12 +25,16 @@ const SwipeableCard = memo(({
   const opacity = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(1)).current;
 
-  const onGestureEvent = useCallback(
-    Animated.event([{ nativeEvent: { translationX: translateX } }], {
-      useNativeDriver: true,
-    }),
-    [translateX]
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
   );
+
+  const resetCard = useCallback(() => {
+    translateX.setValue(0);
+    opacity.setValue(1);
+    scale.setValue(1);
+  }, [translateX, opacity, scale]);
 
   const onHandlerStateChange = useCallback(({ nativeEvent }) => {
     if (disabled) return;
@@ -96,13 +100,7 @@ const SwipeableCard = memo(({
         useNativeDriver: true,
       }).start();
     }
-  }, [disabled, onSwipeLeft, onSwipeRight, translateX, opacity, scale]);
-
-  const resetCard = useCallback(() => {
-    translateX.setValue(0);
-    opacity.setValue(1);
-    scale.setValue(1);
-  }, [translateX, opacity, scale]);
+  }, [disabled, onSwipeLeft, onSwipeRight, translateX, opacity, scale, resetCard]);
 
   const actionOpacity = translateX.interpolate({
     inputRange: [-SCREEN_WIDTH, -SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD, SCREEN_WIDTH],

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { Card, Button, Divider, Chip, IconButton } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import NumberPadInput from '../NumberPad/NumberPadInput';
 import useAlert from '../../hooks/useAlert';
 
@@ -21,11 +22,11 @@ const SplitPaymentForm = ({ ecrService, onTransactionResult, advancedTransaction
 
   const { showSuccess, showError, showWarning } = useAlert();
 
-  const paymentMethods = [
-    { value: 'card', label: 'Card Payment', icon: '💳', hostNo: 'CP' },
-    { value: 'ewallet', label: 'E-Wallet', icon: '📱', hostNo: '00' },
-    { value: 'duitnow', label: 'DuitNow', icon: '🏦', hostNo: 'DN' },
-  ];
+  const paymentMethods = useMemo(() => [
+    { value: 'card', label: 'Card Payment', icon: 'credit-card', hostNo: 'CP' },
+    { value: 'ewallet', label: 'E-Wallet', icon: 'cellphone', hostNo: '00' },
+    { value: 'duitnow', label: 'DuitNow', icon: 'bank', hostNo: 'DN' },
+  ], []);
 
   const addPayment = useCallback(() => {
     if (payments.length >= 5) {
@@ -205,7 +206,7 @@ const SplitPaymentForm = ({ ecrService, onTransactionResult, advancedTransaction
                 ]}
                 onPress={() => updatePayment(payment.id, 'method', method.value)}
               >
-                <Text style={styles.methodIcon}>{method.icon}</Text>
+                <Icon name={method.icon} size={20} color={payment.method === method.value ? '#FFFFFF' : '#2196F3'} style={styles.methodIcon} />
                 <Text style={[
                   styles.methodText,
                   payment.method === method.value && styles.methodTextSelected

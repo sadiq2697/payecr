@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Card, Button, Divider, Chip } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import UpdateService from '../../services/UpdateService';
 
 /**
@@ -122,9 +123,10 @@ const UpdateSettings = () => {
           {updateStatus.hasPendingUpdate && (
             <View style={styles.updateAlert}>
               <View style={styles.updateAlertHeader}>
-                <Text style={styles.updateAlertTitle}>
-                  📱 Update Available
-                </Text>
+                <View style={styles.updateAlertTitleContainer}>
+                  <Icon name="cellphone-arrow-down" size={20} color="#2196F3" style={{marginRight: 8}} />
+                  <Text style={styles.updateAlertTitle}>Update Available</Text>
+                </View>
                 <Chip
                   mode="flat"
                   style={[
@@ -278,6 +280,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  updateAlertTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   updateAlertTitle: {
     fontSize: 16,

@@ -20,52 +20,42 @@ export const useOptimizedComponent = (dependencies = []) => {
     );
   }
 
-  // Stable callback creator
-  const createStableCallback = useCallback((fn, deps) => {
-    return useCallback(fn, deps);
-  }, []);
-
-  // Stable value creator
-  const createStableValue = useCallback((fn, deps) => {
-    return useMemo(fn, deps);
-  }, []);
-
-  // Debounced callback
-  const createDebouncedCallback = useCallback((fn, delay, deps) => {
-    const timeoutRef = useRef(null);
-    
-    return useCallback((...args) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      
-      timeoutRef.current = setTimeout(() => {
-        fn(...args);
-      }, delay);
-    }, deps);
-  }, []);
-
-  // Throttled callback
-  const createThrottledCallback = useCallback((fn, limit, deps) => {
-    const inThrottle = useRef(false);
-    
-    return useCallback((...args) => {
-      if (!inThrottle.current) {
-        fn(...args);
-        inThrottle.current = true;
-        setTimeout(() => {
-          inThrottle.current = false;
-        }, limit);
-      }
-    }, deps);
-  }, []);
-
   return {
     renderCount: renderCount.current,
     timeSinceLastRender,
-    createStableCallback,
-    createStableValue,
-    createDebouncedCallback,
-    createThrottledCallback,
   };
+};
+
+/**
+ * Debounced callback hook
+ */
+export const useDebouncedCallback = (fn, delay, dependencies = []) => {
+  const timeoutRef = useRef(null);
+  
+  return useCallback((...args) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    timeoutRef.current = setTimeout(() => {
+      fn(...args);
+    }, delay);
+  }, [fn, delay]);
+};
+
+/**
+ * Throttled callback hook
+ */
+export const useThrottledCallback = (fn, limit, dependencies = []) => {
+  const inThrottle = useRef(false);
+  
+  return useCallback((...args) => {
+    if (!inThrottle.current) {
+      fn(...args);
+      inThrottle.current = true;
+      setTimeout(() => {
+        inThrottle.current = false;
+      }, limit);
+    }
+  }, [fn, limit]);
 };

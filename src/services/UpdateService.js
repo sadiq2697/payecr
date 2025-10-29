@@ -13,7 +13,7 @@ class UpdateService {
     this.CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
     this.GITHUB_REPO = 'sadiq2697/payecr'; // Your GitHub repository
     this.GITHUB_API_URL = `https://api.github.com/repos/${this.GITHUB_REPO}/releases/latest`;
-    this.currentVersion = require('../../../package.json').version || '1.0.0';
+    this.currentVersion = require('../../package.json').version || '1.0.0';
   }
 
   /**
@@ -21,16 +21,27 @@ class UpdateService {
    */
   async initialize() {
     try {
-      // Load last check time
+      // Validate current version format
+      if (!this.isValidVersion(this.currentVersion)) {
+        throw new Error(`Invalid current version format: ${this.currentVersion}`);
+      }
+
+      // Load last check time with validation
       const lastCheck = await AsyncStorage.getItem('last_update_check');
-      this.lastCheckTime = lastCheck ? parseInt(lastCheck, 10) : 0;
+      if (lastCheck) {
+        const parsedTime = parseInt(lastCheck, 10);
+        if (!isNaN(parsedTime) && parsedTime > 0 && parsedTime <= Date.now()) {
+          this.lastCheckTime = parsedTime;
+        }
+      }
 
       // Start periodic checks (with user consent)
-      this.startPeriodicChecks();
+      await this.startPeriodicChecks();
       
-      console.log('Update service initialized');
+      console.log('Update service initialized successfully');
     } catch (error) {
       console.error('Failed to initialize update service:', error);
+      // Fail gracefully - don't crash the app
     }
   }
 
@@ -76,16 +87,34 @@ class UpdateService {
     try {
       console.log('Checking for updates on GitHub...');
       
-      // Call GitHub API to get latest release
-      const response = await fetch(this.GITHUB_API_URL, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': `PayECR/${this.currentVersion}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-        timeout: 10000, // 10 second timeout
-      });
+      // Validate GitHub URL before making request
+      if (!this.isValidGitHubUrl(this.GITHUB_API_URL)) {
+        throw new Error('Invalid GitHub API URL');
+      }
+
+      // Call GitHub API to get latest release with proper timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        const response = await fetch(this.GITHUB_API_URL, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/vnd.github+json',
+            'User-Agent': `PayECR/${this.currentVersion}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`GitHub API request failed: ${response.status} ${response.statusText}`);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         throw new Error(`GitHub API request failed: ${response.status}`);
@@ -524,6 +553,65 @@ class UpdateService {
   cleanup() {
     this.stopPeriodicChecks();
     this.isChecking = false;
+  }
+
+  /**
+   * Validation helper methods for security
+   */
+  isValidVersion(version) {
+    if (!version || typeof version !== 'string') {
+      return false;
+    }
+    // Check semantic versioning format (x.y.z)
+    const versionRegex = /^(\d+)\.(\d+)\.(\d+)(?:-([\w\.-]+))?$/;
+    return versionRegex.test(version);
+  }
+
+  isValidGitHubUrl(url) {
+    if (!url || typeof url !== 'string') {
+      return false;
+    }
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname === 'api.github.com' && 
+             urlObj.protocol === 'https:' &&
+             urlObj.pathname.includes('/repos/');
+    } catch (error) {
+      return false;
+    }
+  }
+
+  sanitizeString(str) {
+    if (!str || typeof str !== 'string') {
+      return '';
+    }
+    // Remove potentially dangerous characters
+    return str.replace(/[<>"'&]/g, '').trim();
+  }
+
+  validateUpdateResponse(updateInfo) {
+    if (!updateInfo || typeof updateInfo !== 'object') {
+      return false;
+    }
+    
+    // Validate required fields
+    if (!this.isValidVersion(updateInfo.version)) {
+      return false;
+    }
+    
+    if (updateInfo.downloadUrl && typeof updateInfo.downloadUrl === 'string') {
+      try {
+        const url = new URL(updateInfo.downloadUrl);
+        // Only allow downloads from GitHub releases
+        if (url.hostname !== 'github.com' && !url.hostname.endsWith('.github.com')) {
+          return false;
+        }
+      } catch (error) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 }
 

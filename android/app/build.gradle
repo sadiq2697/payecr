@@ -77,9 +77,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.payecr"
+    namespace "com.asasiipos"
     defaultConfig {
-        applicationId "com.payecr"
+        applicationId "com.asasiipos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -107,6 +107,12 @@ android {
     }
 }
 
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
@@ -116,9 +122,13 @@ dependencies {
     // Network communication
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
     
+    
     // Support libraries
     implementation 'androidx.appcompat:appcompat:1.4.2'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    
+    // Printer library
+    implementation(name: 'printer-lib-3.1.7', ext: 'aar')
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

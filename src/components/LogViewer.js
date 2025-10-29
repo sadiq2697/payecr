@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { Card, Title, Button, Chip, Divider } from 'react-native-paper';
+import ResponsiveGrid from './UI/ResponsiveGrid';
+import DashboardCard from './UI/DashboardCard';
 
 const LogViewer = ({ ecrService }) => {
   const [logs, setLogs] = useState([]);
@@ -29,14 +31,14 @@ const LogViewer = ({ ecrService }) => {
     // Set up periodic refresh
     const interval = setInterval(loadLogs, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadLogs]);
   
-  const loadLogs = () => {
+  const loadLogs = useCallback(() => {
     if (ecrService) {
       const communicationLog = ecrService.getCommunicationLog();
       setLogs(communicationLog);
     }
-  };
+  }, [ecrService]);
   
   const handleRefresh = () => {
     setRefreshing(true);
@@ -120,10 +122,14 @@ const LogViewer = ({ ecrService }) => {
   const filteredLogs = getFilteredLogs();
   
   return (
-    <Card style={styles.card}>
-      <Card.Content>
-        <View style={styles.header}>
-          <Title>Communication Log</Title>
+    <ResponsiveGrid scrollable={true}>
+      <DashboardCard
+        title="Communication Log"
+        subtitle={`${filteredLogs.length} of ${logs.length} entries`}
+        icon="file-document-outline"
+        cardType="info"
+        fullWidth={true}
+        headerAction={
           <View style={styles.headerButtons}>
             <Button
               mode="outlined"
@@ -142,17 +148,9 @@ const LogViewer = ({ ecrService }) => {
               Clear
             </Button>
           </View>
-        </View>
-        
+        }
+      >
         {renderFilterChips()}
-        
-        <Divider style={styles.divider} />
-        
-        <View style={styles.logStats}>
-          <Text style={styles.statsText}>
-            Showing {filteredLogs.length} of {logs.length} entries
-          </Text>
-        </View>
         
         <ScrollView
           style={styles.logContainer}
@@ -177,8 +175,8 @@ const LogViewer = ({ ecrService }) => {
             )
           )}
         </ScrollView>
-      </Card.Content>
-    </Card>
+      </DashboardCard>
+    </ResponsiveGrid>
   );
 };
 
