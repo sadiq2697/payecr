@@ -1,99 +1,108 @@
-# 💳 Asasii POS - Advanced ECR Payment Terminal App
+# 💳 Asasii POS - Modern Point of Sale System
 
-A modern React Native application for managing ECR (Electronic Cash Register) payment terminals with advanced transaction processing, real-time monitoring, and comprehensive device management.
+A high-performance React Native POS application with dual-screen support, ECR terminal integration, and advanced transaction management.
 
-![React Native](https://img.shields.io/badge/React%20Native-Latest-blue) ![Android](https://img.shields.io/badge/Android-API%2021%2B-green) ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
+![React Native](https://img.shields.io/badge/React%20Native-0.80.2-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5.0.4-blue) ![Android](https://img.shields.io/badge/Android-API%2021%2B-green) ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
 
 ## ✨ Features
 
-### 🔌 **Multi-Protocol Connection Support**
-- **TCP/IP Connection** - Network-based terminal communication with configurable timeouts
-- **Serial/RS232 Connection** - Direct serial device communication with full parameter control
-- **USB Serial Connection** - USB-to-Serial converter support with OTG compatibility
-- **Real-time Connection Monitoring** - Health tracking with latency, uptime, and failure detection
-- **Auto-reconnect Logic** - Smart reconnection with exponential backoff and device detection
-- **Multi-device Management** - Support for multiple terminals with individual monitoring
+### 🎯 **Core POS Functionality**
+- **Modern Touch Interface** - Intuitive tablet-optimized UI with responsive design
+- **Advanced Transaction Management** - Sale, void, refund, hold, and split payment support
+- **Multi-Item Cart** - Add, modify, remove items with real-time totals
+- **Custom Number Pad** - Quick entry for quantities, discounts, and price overrides
+- **Barcode Scanning** - Integrated barcode scanning for product lookup
+- **Customer Management** - Assign customers to transactions
+- **Transaction History** - Complete transaction logging with search and filtering
 
-### 💳 **Advanced Payment Processing**
-- **Standard ECR Transactions** - Sale, void, refund, and settlement operations
-- **Split Payment Support** - Divide payments across multiple methods and terminals
-- **Transaction Recording** - Complete JSON-based transaction logging with export capabilities
-- **Receipt Generation** - Customer, merchant, and POS receipt printing with custom formatting
-- **Transaction Analytics** - Real-time statistics, charts, and business insights
-- **Response Code Handling** - Comprehensive ECR response parsing and error handling
+### 🖥️ **Dual Screen Support**
+- **Customer-Facing Display** - Secondary screen showing cart and totals
+- **Auto-Detection** - Automatic detection and setup of secondary displays
+- **Real-Time Sync** - Instant updates synchronized across both screens
+- **Presentation API** - Native Android presentation display integration
 
-### 🎨 **Modern UI/UX**
-- **Optimized Number Pad** - Custom number pad with input validation and smooth animations
-- **Gesture Controls** - Swipe-to-delete, swipe-to-share for transaction management
-- **Advanced Modals** - Gesture-based modals with slide, fade, and scale animations
-- **Real-time Status Indicators** - Animated connection health with live monitoring
-- **Performance Optimized** - Lazy inputs, virtualized lists, and debounced operations
-- **Toast Notification System** - Non-intrusive user feedback with queue management
-- **Tabbed Navigation** - Bottom tab navigation with Home, Dashboard, History, Receipts, Settings
+### 💳 **Payment Terminal Integration**
+- **ECR Terminal Support** - Full ECR protocol implementation
+- **TCP/IP & Serial** - Multiple connection protocols
+- **Real-Time Status** - Connection health monitoring
+- **Auto-Reconnect** - Smart reconnection with exponential backoff
+- **Response Parsing** - Comprehensive ECR response handling
 
-### 🏗️ **Architecture & Performance**
-- **Service-Oriented Architecture** - Modular services for ECR, configuration, logging, and caching
-- **Advanced State Management** - Local state with hooks and context patterns
-- **Error Boundary System** - Graceful error handling with recovery mechanisms
-- **Multi-layer Caching** - Smart caching for device data, configurations, and transaction history
-- **Background Processing** - Connection monitoring and device scanning in background
-- **Memory Optimization** - Efficient component lifecycle management and cleanup
+### 🖨️ **Receipt & Printing**
+- **ESC/POS Integration** - Native printer support via ESC/POS protocol
+- **Custom Receipt Templates** - Configurable receipt formatting
+- **Multiple Receipt Types** - Customer, merchant, and POS receipts
+- **Auto-Print** - Automatic receipt printing after transactions
+
+### 🎨 **UI/UX Excellence**
+- **Performance Optimized** - React.memo, useMemo, and FlatList for smooth scrolling
+- **Kiosk Mode** - Full-screen immersive mode for retail environments
+- **Dark/Light Themes** - Customizable color schemes
+- **Gesture Controls** - Swipe and touch gestures for common actions
+- **Toast Notifications** - Non-intrusive user feedback
+- **Error Boundaries** - Graceful error handling with recovery
+
+### 🏗️ **Architecture**
+- **TypeScript** - Type-safe React components and services
+- **Context API** - Modern state management with React Context
+- **Service Layer** - Modular services for ECR, printer, configuration
+- **Navigation** - React Navigation with stack and tab navigators
+- **File Logging** - Comprehensive application logging
 
 ## 📂 Project Structure
 
 ```
 src/
-├── components/                          # UI Components
-│   ├── AdvancedModal/                     # Gesture-based modal with animations
-│   │   └── AdvancedModal.js                 # Advanced modal component
-│   ├── AdvancedTransactions/              # Advanced transaction features
-│   │   └── SplitPaymentForm.js              # Split payment configuration
-│   ├── Dashboard/                         # Analytics and insights
-│   │   └── Dashboard.js                     # Business dashboard with charts
-│   ├── ErrorBoundary/                     # Error handling
-│   │   └── ErrorBoundary.js                 # React error boundary
-│   ├── NumberPad/                         # Custom number input
-│   │   ├── NumberPad.js                     # Main number pad component
-│   │   ├── NumberPadInput.js                # Input field with validation
-│   │   ├── NumberPadModal.js                # Modal wrapper for number pad
-│   │   └── index.js                         # NumberPad exports
-│   ├── OptimizedComponents/               # Performance-optimized components
-│   │   ├── LazyInput.js                     # Debounced input with validation
-│   │   └── SwipeableCard.js                 # Swipeable list items
-│   ├── Settings/                          # Configuration management
-│   │   └── ConfigurationSettings.js        # App and ECR configuration
-│   ├── ToastNotification/                 # Notification system
-│   │   └── ToastManager.js                  # Toast notification manager
-│   ├── AlertModal.js                      # Alert dialog component
-│   ├── AnimatedStatusIndicator.js         # Connection status animations
-│   ├── ConnectionSetup.js                 # Device connection management
-│   ├── DeviceManagement.js                # Multi-device management interface
-│   ├── LogViewer.js                       # Application log viewer
-│   ├── ReceiptViewer.js                   # Receipt display and management
-│   ├── ResponseDisplay.js                 # ECR response formatting
-│   ├── TransactionForm.js                 # Payment form interface
-│   └── TransactionHistory.js              # Transaction history with analytics
-├── hooks/                               # Custom React Hooks
-│   ├── useAlert.js                        # Alert management hook
-│   ├── useOptimizedComponent.js           # Component optimization utilities
-│   └── useThrottledCallback.js            # Debounced callback handling
-├── screens/                             # Application Screens
-│   └── HomeScreen.js                      # Main application screen with navigation
-├── services/                            # Business Logic Services
-│   ├── AdvancedTransactionService.js      # Advanced transaction processing
-│   ├── CacheService.js                    # Multi-layer caching system
-│   ├── ConfigurationManager.js            # Configuration persistence
-│   ├── ConnectionMonitor.js               # Real-time connection health monitoring
-│   ├── ECRService.js                      # Core ECR communication protocol
-│   ├── FileLogger.js                      # Application logging service
-│   ├── LRCCalculator.js                   # LRC checksum calculation
-│   ├── MessageBuilder.js                  # ECR message construction
-│   ├── POSReceiptService.js               # Point-of-sale receipt generation
-│   ├── ReceiptService.js                  # Receipt formatting and printing
-│   ├── ResponseParser.js                  # ECR response parsing
-│   └── TransactionRecorder.js             # Transaction logging and export
-└── utils/                               # Utility Functions
-    └── Constants.js                       # Application constants and configurations
+├── components/                    # UI Components
+│   ├── Dashboard/                   # Dashboard cards and widgets
+│   ├── NumberPad/                   # Custom number pad with modal
+│   ├── Settings/                    # Configuration components
+│   ├── ToastNotification/           # Toast notification system
+│   ├── UI/                          # Reusable UI components
+│   ├── DeviceManagement.js          # Device management interface
+│   ├── PrinterManagement.js         # Printer configuration
+│   ├── ReceiptViewer.js             # Receipt display
+│   └── TransactionHistory.js        # Transaction history viewer
+├── contexts/                      # React Context Providers
+│   ├── ConfigContext.tsx            # App configuration
+│   ├── ECRContext.tsx               # ECR terminal state
+│   ├── PrinterContext.tsx           # Printer state
+│   └── TransactionContext.tsx       # Transaction state
+├── hooks/                         # Custom React Hooks
+│   ├── useAlert.js                  # Alert management
+│   └── useOptimizedComponent.js     # Performance optimization
+├── navigation/                    # Navigation Configuration
+│   └── RootNavigator.tsx            # Stack navigator setup
+├── providers/                     # Context Providers Wrapper
+│   └── AppProviders.tsx             # Combined providers
+├── screens/                       # Application Screens
+│   ├── SplashScreen.tsx             # App splash screen
+│   ├── LoginScreen.tsx              # Cashier login
+│   ├── index.tsx                    # Main POS screen
+│   ├── CustomerSelectScreen.tsx     # Customer selection
+│   ├── DiscountScreen.tsx           # Apply discounts
+│   ├── PriceOverrideScreen.tsx      # Price override
+│   ├── ProductLookupScreen.tsx      # Product search
+│   ├── HoldTransactionScreen.tsx    # Held transactions
+│   ├── PaymentScreen.tsx            # Payment processing
+│   ├── ReceiptScreen.tsx            # Receipt display
+│   ├── SettingsScreen.tsx           # App settings
+│   └── CustomerDisplayScreen.tsx    # Secondary screen display
+├── services/                      # Business Logic Services
+│   ├── ECRService.js                # ECR communication
+│   ├── PrinterService.js            # Printer integration
+│   ├── DualScreenManager.ts         # Dual screen management
+│   ├── KioskModeService.js          # Kiosk mode control
+│   ├── ConfigurationManager.js      # Configuration persistence
+│   ├── ConnectionMonitor.js         # Connection health monitoring
+│   ├── FileLogger.js                # File logging service
+│   ├── POSReceiptService.js         # POS receipt generation
+│   ├── ReceiptService.js            # Receipt formatting
+│   ├── TransactionRecorder.js       # Transaction logging
+│   ├── MessageBuilder.js            # ECR message construction
+│   └── ResponseParser.js            # ECR response parsing
+└── utils/                         # Utility Functions
+    └── Constants.js                 # App constants and config
 ```
 
 ## 🚀 Quick Start
@@ -101,21 +110,18 @@ src/
 ### Prerequisites
 - Node.js 18+
 - React Native development environment
-- Android Studio (for Android development)
-- Physical Android device (recommended for USB testing)
+- Android Studio (for Android)
+- Physical Android device (recommended)
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone https://github.com/sadiq2697/payecr.git
-cd payecr
+git clone https://github.com/asasii/pos-app.git
+cd pos-app
 
 # Install dependencies
 npm install
-
-# Install additional dependencies (if needed)
-npm install react-native-chart-kit  # Already included in package.json
 
 # Run on Android
 npm run android
@@ -127,145 +133,85 @@ npm run ios
 
 ## 🔧 Configuration
 
-### ECR Terminal Configuration
+### POS Settings
 
 Edit `src/utils/Constants.js`:
 
 ```javascript
-export const ECR_CONSTANTS = {
-  TCP_CONFIG: {
+export const POS_CONFIG = {
+  STORE_NAME: 'ENTERPRISE POS',
+  STORE_ID: 'HQ-001',
+  REGISTER_ID: 'POS-03',
+  TAX_RATE: 0.085, // 8.5%
+  CURRENCY: 'RM',
+};
+
+export const ECR_CONFIG = {
+  TCP: {
+    HOST: '192.168.1.100',
     PORT: 8080,
     TIMEOUT: 30000,
   },
-  SERIAL_CONFIG: {
+  SERIAL: {
     BAUD_RATE: 115200,
     DATA_BITS: 8,
     STOP_BITS: 1,
     PARITY: 'none',
   },
-  TIMEOUTS: {
-    COMMAND: 30000,
-    CONNECTION: 10000,
-  },
-  MESSAGE_FORMATS: {
-    STX: 0x02,
-    ETX: 0x03,
-    // ... other protocol constants
-  }
 };
 ```
 
-### Connection Types
+## 💡 Usage
 
-1. **TCP/IP Connection**
-   - Host IP address (e.g., 192.168.1.100)
-   - Port number (default: 8080)
-   - Connection timeout settings
+### Basic Transaction Flow
 
-2. **Serial Connection**
-   - COM port selection
-   - Baud rate (9600, 19200, 115200)
-   - Data bits, parity, stop bits configuration
+1. **Login** - Cashier authentication
+2. **Add Items** - Scan barcodes or search products
+3. **Modify Cart** - Adjust quantities, apply discounts
+4. **Customer** - Assign customer (optional)
+5. **Payment** - Process payment via ECR terminal
+6. **Receipt** - Auto-print receipt
 
-3. **USB Serial Connection**
-   - USB device detection and permission handling
-   - Automatic device discovery
-   - Hot-plug support with auto-reconnection
+### Advanced Features
 
-## 💳 Key Features Usage
-
-### Transaction Processing
-
+#### Split Payment
 ```javascript
-import { ECRService } from './services/ECRService';
-
-const ecrService = new ECRService();
-
-// Process a sale transaction
-const saleResult = await ecrService.processTransaction({
-  type: 'SALE',
-  amount: 1000, // RM 10.00 in cents
-  hostNumber: 'CP',
-});
-
-// Process a void transaction
-const voidResult = await ecrService.processTransaction({
-  type: 'VOID',
-  originalTransactionId: 'TXN123456',
+// Navigate to split payment screen
+navigation.navigate('Payment', {
+  enableSplitPayment: true
 });
 ```
 
-### Split Payment Processing
-
+#### Hold Transaction
 ```javascript
-import SplitPaymentForm from './components/AdvancedTransactions/SplitPaymentForm';
+// Hold current transaction for later
+await TransactionRecorder.holdTransaction(cart);
 
-const splitConfig = {
-  totalAmount: 10000, // RM 100.00
-  payments: [
-    { method: 'CARD', amount: 6000, terminal: 'terminal1' },
-    { method: 'EWALLET', amount: 4000, terminal: 'terminal2' }
-  ]
-};
+// Recall held transaction
+const heldTransaction = await TransactionRecorder.getHeldTransaction(id);
 ```
 
-### Transaction Recording & Analytics
-
+#### Return/Refund
 ```javascript
-import { TransactionRecorder } from './services/TransactionRecorder';
-
-const recorder = new TransactionRecorder();
-
-// Record transaction with full metadata
-await recorder.recordTransaction(transactionData, response, {
-  deviceInfo: deviceMetadata,
-  location: locationData,
-  cashier: cashierInfo
-});
-
-// Get transaction statistics
-const stats = await recorder.getTransactionStatistics();
-const history = await recorder.getTransactionHistory();
-
-// Export transactions
-await recorder.exportTransactions('CSV');
-await recorder.exportTransactions('PDF');
+// Toggle return mode
+setIsReturnMode(true);
+// All quantities become negative for refund
 ```
 
-### Real-time Connection Monitoring
-
-```javascript
-import ConnectionMonitor from './services/ConnectionMonitor';
-
-const monitor = new ConnectionMonitor(ecrService);
-
-monitor.on('healthUpdate', (health) => {
-  console.log(`Connection health: ${health.isHealthy}`);
-  console.log(`Latency: ${health.latency}ms`);
-  console.log(`Uptime: ${health.uptime}ms`);
-});
-
-monitor.on('connectionLost', () => {
-  // Handle connection loss
-});
-
-monitor.startMonitoring();
-```
-
-## 🔄 Development Workflow
+## 🔄 Development
 
 ### Running in Development
 ```bash
 # Start Metro bundler
 npm start
 
-# Run on Android device
+# Run on Android
 npm run android
 
-# Debug logs
+# View logs
 npx react-native log-android
 
-# Clear cache if needed
+# Clear cache
 npm start --reset-cache
 ```
 
@@ -275,88 +221,130 @@ npm start --reset-cache
 cd android
 ./gradlew assembleRelease
 
-# APK location:
+# APK output:
 # android/app/build/outputs/apk/release/app-release.apk
 ```
 
-## 📊 Analytics & Reporting
+## 🎯 Performance Optimizations
 
-### Built-in Analytics
-- **Transaction Statistics** - Success rates, average amounts, transaction types
-- **Performance Metrics** - Connection uptime, response times, error rates
-- **Business Insights** - Daily/weekly/monthly revenue tracking
-- **Device Health** - Terminal status, connection quality, usage patterns
+- **React.memo** - Memoized components to prevent unnecessary re-renders
+- **useMemo** - Cached expensive calculations (subtotal, tax, total)
+- **useCallback** - Stable callback references
+- **FlatList** - Virtualized list rendering for cart items
+- **Debouncing** - 300ms debounce for customer display updates
+- **Lazy Loading** - Code splitting for screens
+- **removeClippedSubviews** - Improved scrolling performance
 
-### Export Options
-- **JSON Exports** - Complete transaction data with metadata
-- **CSV Reports** - Spreadsheet-compatible transaction summaries
-- **PDF Receipts** - Customer and merchant receipt generation
-- **Chart Visualizations** - Line charts, pie charts for trend analysis
+## 🖨️ Printer Setup
 
-## 🛡️ Security & Compliance
+### Supported Printers
+- ESC/POS compatible thermal printers
+- USB, Bluetooth, and Network printers
+- 58mm and 80mm paper sizes
 
-### Data Security
-- 🔒 **Local Encryption** - Transaction data encrypted using AsyncStorage
-- 🔒 **Secure Communication** - TLS/SSL for TCP connections
-- 🔒 **Data Masking** - Sensitive card data masked in logs
-- 🔒 **Permission Management** - Device access permissions properly handled
+### Configuration
+```javascript
+const printerConfig = {
+  type: 'USB', // or 'BLUETOOTH', 'NETWORK'
+  paperWidth: 58, // or 80
+  encoding: 'UTF-8',
+};
+```
 
-### ECR Protocol Compliance
-- ✅ **Standard ECR Protocol** - Full compliance with ECR communication standards
-- ✅ **Message Validation** - LRC checksum validation for all messages
-- ✅ **Error Handling** - Comprehensive response code handling
-- ✅ **Timeout Management** - Configurable timeouts for all operations
+## 🖥️ Dual Screen Setup
 
-## 🔧 Troubleshooting
+### Hardware Requirements
+- Android device with secondary display support
+- HDMI adapter or wireless display
+- Android 8.0+ (API 26+)
+
+### Configuration
+```javascript
+// Auto-detect and show customer display
+await DualScreenManager.showCustomerDisplay(displayId);
+
+// Update display content
+await DualScreenManager.updateCustomerDisplay({
+  cart,
+  subtotal,
+  tax,
+  total,
+});
+```
+
+## 🔐 Security
+
+- **Local Storage Encryption** - Sensitive data encrypted via AsyncStorage
+- **Kiosk Mode** - Prevents unauthorized access
+- **Activity Timeout** - Auto-logout after inactivity
+- **Permission Management** - Proper Android permissions
+- **Data Masking** - Card data masked in logs
+
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
-1. **USB Device Not Detected**
-   - Check USB OTG adapter functionality
-   - Verify device permissions in Android settings
-   - Try different USB cables
+**App crashes on startup**
+- Clear cache: `npm start --reset-cache`
+- Reinstall: `npm install && npm run android`
 
-2. **TCP Connection Timeouts**
-   - Verify network connectivity
-   - Check firewall settings on ECR terminal
-   - Confirm IP address and port configuration
+**Dual screen not working**
+- Check Android version (8.0+)
+- Verify display permissions
+- Restart secondary display
 
-3. **Transaction Failures**
-   - Review ECR terminal logs
-   - Check message format in LRCCalculator
-   - Verify terminal is in correct mode
+**Printer not connecting**
+- Check USB/Bluetooth permissions
+- Verify printer compatibility
+- Test with different cable/adapter
 
-### Debug Mode
-Enable detailed logging in development:
+**ECR terminal timeout**
+- Verify network connectivity
+- Check IP/port configuration
+- Review terminal logs
 
-```javascript
-// Set in Constants.js
-export const DEBUG_MODE = __DEV__;
-```
+## 📦 Dependencies
+
+### Core
+- `react-native` 0.80.2
+- `react` 19.1.0
+- `typescript` 5.0.4
+
+### Navigation
+- `@react-navigation/native` ^7.1.17
+- `@react-navigation/stack` ^7.4.7
+- `@react-navigation/bottom-tabs` ^7.4.6
+
+### UI
+- `react-native-paper` ^5.14.5
+- `lucide-react-native` ^0.548.0
+- `react-native-safe-area-context` ^5.6.0
+- `react-native-gesture-handler` ^2.28.0
+
+### Utilities
+- `@react-native-async-storage/async-storage` ^2.2.0
+- `react-native-tcp-socket` ^6.3.0
+- `react-native-chart-kit` ^6.12.0
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create feature branch: `git checkout -b feature/new-feature`
-3. Implement changes with proper error handling
-4. Add tests for new functionality
-5. Update documentation
-6. Commit: `git commit -m 'feat: add new feature'`
-7. Push: `git push origin feature/new-feature`
-8. Create Pull Request
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'feat: add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/sadiq2697/payecr/issues)
-- 📖 **Documentation**: [Project Wiki](https://github.com/sadiq2697/payecr/wiki)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/sadiq2697/payecr/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/asasii/pos-app/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/asasii/pos-app/discussions)
 
 ---
 
-**Made with ❤️ for modern payment processing**
+**Built with ❤️ for modern retail**
 
-*PayECR - Empowering businesses with reliable ECR terminal management and advanced transaction processing capabilities*
+*Asasii POS - Enterprise-grade point of sale solution*
