@@ -14,7 +14,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
-  Login: undefined;
+  Login: { storeCode?: string; outletCode?: string } | undefined;
   POS: undefined;
   CustomerSelect: undefined;
   Discount: { itemIndex: number };

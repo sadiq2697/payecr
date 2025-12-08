@@ -10,6 +10,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { apiService } from '../services/ApiService';
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'Splash'>;
 
@@ -45,12 +46,27 @@ const SplashScreen = () => {
       }),
     ]).start();
 
-    // Navigate to Login after 2.5 seconds
-    const timer = setTimeout(() => {
-      navigation.replace('Login');
-    }, 2500);
+    // Load saved credentials and navigate to Login
+    const loadAndNavigate = async () => {
+      let savedCredentials = { storeCode: '', outletCode: '' };
+      try {
+        const { storeCode, outletCode } = await apiService.getSavedLoginCredentials();
+        if (storeCode && outletCode) {
+          savedCredentials = { storeCode, outletCode };
+        }
+      } catch (error) {
+        console.error('Failed to load saved credentials:', error);
+      }
 
-    return () => clearTimeout(timer);
+      // Navigate after minimum 2.5 seconds
+      setTimeout(() => {
+        navigation.replace('Login', savedCredentials);
+      }, 2500);
+    };
+
+    loadAndNavigate();
+
+    return () => {};
   }, []);
 
   return (
@@ -108,7 +124,7 @@ const SplashScreen = () => {
               ]}
             />
           </View>
-          <Text style={styles.version}>v2.0.1045-ENTERPRISE</Text>
+          <Text style={styles.version}>v1.0.0001 Asasii|POS</Text>
         </Animated.View>
       </View>
     </View>

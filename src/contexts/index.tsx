@@ -3,6 +3,9 @@
  * Centralized exports for all app contexts
  */
 
+// Auth Context
+export { AuthProvider, useAuth } from './AuthContext';
+
 // ECR Context
 export { ECRProvider, useECR } from './ECRContext';
 

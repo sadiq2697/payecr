@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react';
+import { AuthProvider } from '../contexts/AuthContext';
 import { ECRProvider } from '../contexts/ECRContext';
 import { TransactionProvider } from '../contexts/TransactionContext';
 import { PrinterProvider } from '../contexts/PrinterContext';
@@ -15,15 +16,17 @@ interface AppProvidersProps {
  */
 export const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
   return (
-    <ConfigProvider>
-      <ECRProvider>
-        <TransactionProvider>
-          <PrinterProvider>
-            {children}
-          </PrinterProvider>
-        </TransactionProvider>
-      </ECRProvider>
-    </ConfigProvider>
+    <AuthProvider>
+      <ConfigProvider>
+        <ECRProvider>
+          <TransactionProvider>
+            <PrinterProvider>
+              {children}
+            </PrinterProvider>
+          </TransactionProvider>
+        </ECRProvider>
+      </ConfigProvider>
+    </AuthProvider>
   );
 };
 
